@@ -7,6 +7,7 @@ import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.widget.FrameLayout
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -497,8 +498,9 @@ fun PlayerScreen(
 @Composable
 private fun GlassIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        modifier.size(38.dp).clip(RoundedCornerShape(12.dp))
-            .background(Brush.linearGradient(listOf(Color(0x66000000), Color(0x33000000))))
+        modifier.size(40.dp).clip(RoundedCornerShape(14.dp))
+            .background(Brush.linearGradient(listOf(Color(0x7AFFFFFF), Color(0x1FFFFFFF))))
+            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(14.dp))
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(20.dp)) }
@@ -522,7 +524,7 @@ private fun GlassBottomSheet(onDismiss: () -> Unit, content: @Composable () -> U
 private fun GlassRow(selected: Boolean, onClick: () -> Unit, content: @Composable () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(12.dp))
-            .background(if (selected) Color(0x338B5CF6) else Color(0x14FFFFFF))
+            .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.20f) else Color(0x14FFFFFF))
             .clickable { onClick() }.padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

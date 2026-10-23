@@ -124,7 +124,7 @@ fun HomeScreen(
 
         if (loading) {
             Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = PurplePrimary)
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         } else {
             SectionHeader(
@@ -205,7 +205,7 @@ private fun HomeHeader(onSearchClick: () -> Unit, onMenuClick: () -> Unit, onSet
         Spacer(Modifier.width(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Anime", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text("X", color = PurpleLight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("X", color = MaterialTheme.colorScheme.secondary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text("stream", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.weight(1f))
@@ -230,7 +230,7 @@ private fun MainCategoryRow(onSelect: (String) -> Unit) {
             ) {
                 Text(
                     label,
-                    color = if (active) PurpleLight else TextSecondary,
+                    color = if (active) MaterialTheme.colorScheme.secondary else TextSecondary,
                     fontSize = 15.sp,
                     fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
                 )
@@ -238,7 +238,7 @@ private fun MainCategoryRow(onSelect: (String) -> Unit) {
                 Box(
                     Modifier.width(if (active) 22.dp else 0.dp).height(2.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(if (active) PurpleLight else Color.Transparent)
+                        .background(if (active) MaterialTheme.colorScheme.secondary else Color.Transparent)
                 )
             }
         }
@@ -296,7 +296,7 @@ private fun HeroSlideshow(items: List<Anime>, onClick: (String) -> Unit) {
                 Modifier.padding(horizontal = 3.dp)
                     .size(if (active) 18.dp else 6.dp, 6.dp)
                     .clip(CircleShape)
-                    .background(if (active) PurpleLight else TextTertiary)
+                    .background(if (active) MaterialTheme.colorScheme.secondary else TextTertiary)
             )
         }
     }
@@ -313,7 +313,7 @@ private fun GenreTextRow(genres: List<String>, selected: String, onSelect: (Stri
                     fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
                 if (sel) {
                     Spacer(Modifier.height(4.dp))
-                    Box(Modifier.width(20.dp).height(2.dp).clip(RoundedCornerShape(2.dp)).background(PurpleLight))
+                    Box(Modifier.width(20.dp).height(2.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.secondary))
                 }
             }
         }
@@ -329,6 +329,6 @@ private fun ContinueCard(title: String, poster: String, ep: Int, onClick: () -> 
         )
         Spacer(Modifier.height(6.dp))
         Text(title, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text("Ep $ep", color = PurpleLight, fontSize = 10.sp)
+        Text("Ep $ep", color = MaterialTheme.colorScheme.secondary, fontSize = 10.sp)
     }
 }

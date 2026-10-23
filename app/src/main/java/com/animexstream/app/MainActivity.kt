@@ -27,6 +27,10 @@ class MainActivity : ComponentActivity() {
         DownloadManager.init(applicationContext)
         ProviderPrefs.init(applicationContext)
         com.animexstream.app.data.OnboardingPrefs.init(applicationContext)
+        com.animexstream.app.data.SessionStore.init(applicationContext)
+        // Rehydrate a persisted login (survives uninstall) before the splash
+        // decides where to go, so a returning user lands straight on Home.
+        com.animexstream.app.data.SessionStore.restoreIfPresent()
         enableEdgeToEdge()
 
         // Hide system navigation bar — immersive full-screen

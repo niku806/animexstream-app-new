@@ -44,6 +44,8 @@ object UserPrefs {
             ?.putString(K_NAME, name)
             ?.putBoolean(K_LOGGED, true)
             ?.apply()
+        // Mirror to the public file so the session survives an uninstall.
+        SessionStore.backup()
     }
 
     fun updateProfile(username: String? = null, icon: String? = null, name: String? = null) {
@@ -56,6 +58,7 @@ object UserPrefs {
 
     fun logout() {
         prefs?.edit()?.remove(K_LOGGED)?.remove(K_UID)?.remove(K_USERNAME)?.remove(K_EMAIL)?.remove(K_ICON)?.remove(K_NAME)?.apply()
+        SessionStore.clearBackup()
     }
 
     // ---------- Continue watching ----------
