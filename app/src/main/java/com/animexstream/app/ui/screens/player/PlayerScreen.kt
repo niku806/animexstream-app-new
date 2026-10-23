@@ -262,13 +262,13 @@ fun PlayerScreen(
                 Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                GlassIconButton(Icons.Default.KeyboardArrowRight) { exoPlayer?.pause(); onBack() }
+                GlassIconButton(Icons.Default.KeyboardArrowLeft) { exoPlayer?.pause(); onBack() }
                 Spacer(Modifier.weight(1f))
                 GlassIconButton(Icons.Default.Info) { }
                 Spacer(Modifier.width(6.dp))
                 GlassIconButton(Icons.Default.Settings) { showSettings = true }
                 Spacer(Modifier.width(6.dp))
-                GlassIconButton(Icons.Default.Menu) { isFullscreen = true }
+                GlassIconButton(Icons.Default.Fullscreen) { isFullscreen = true }
             }
 
 
@@ -589,7 +589,7 @@ private fun FullscreenPlayer(
 
         // Top-left: back + server selector
         Row(Modifier.align(Alignment.TopStart).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Default.KeyboardArrowRight, null, tint = Color.White) }
+            IconButton(onClick = onBack) { Icon(Icons.Default.KeyboardArrowLeft, null, tint = Color.White) }
             Box {
                 Box(
                     Modifier.clip(RoundedCornerShape(20.dp))

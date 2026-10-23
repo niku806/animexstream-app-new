@@ -41,6 +41,8 @@ data class Episode(
     val servers: List<StreamServer> = emptyList(),
     val downloads: List<DownloadLink> = emptyList(),
     val isLocked: Boolean = false,
+    // animedekho.tv episode page URL — when set, its real servers are resolved.
+    val pageUrl: String = "",
 )
 
 // ---------- Anime detail ----------

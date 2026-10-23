@@ -225,20 +225,24 @@ abstract class AniListProvider : ContentProvider {
             "OVA" -> "OVA"
             else -> "Anime"
         }
-        // Reuse real playable servers from the AnimeXstream library when a
-        // same-titled entry exists, so video playback still works.
-        val bridge = runCatching { AnimeRepository.bridgeDetailForTitle(anime.title) }.getOrNull()
-        val episodes = (1..total).map { n ->
-            val bridged = bridge?.episodes?.firstOrNull { it.number == n }
-            Episode(
-                number = n,
-                season = 1,
-                title = "Episode $n",
-                image = anime.poster,
-                description = "",
-                servers = bridged?.servers ?: emptyList(),
-                downloads = bridged?.downloads ?: emptyList(),
-            )
+        // Real episodes + playable servers from animedekho, so these titles
+        // actually play and download instead of being metadata-only.
+        val ad = runCatching { AnimeDekho.findSeries(anime.title) }.getOrNull()
+            ?.let { AnimeDekho.detail(it, anime.title, anime.poster) }
+        val episodes = ad?.episodes?.takeIf { it.isNotEmpty() } ?: run {
+            val bridge = runCatching { AnimeRepository.bridgeDetailForTitle(anime.title) }.getOrNull()
+            (1..total).map { n ->
+                val bridged = bridge?.episodes?.firstOrNull { it.number == n }
+                Episode(
+                    number = n,
+                    season = 1,
+                    title = "Episode $n",
+                    image = anime.poster,
+                    description = "",
+                    servers = bridged?.servers ?: emptyList(),
+                    downloads = bridged?.downloads ?: emptyList(),
+                )
+            }
         }
         val detail = AnimeDetail(
             slug = slug,
@@ -257,8 +261,18 @@ abstract class AniListProvider : ContentProvider {
         detail
     }
 
-    override suspend fun resolveServers(episode: Episode): List<ResolvedServer> =
-        ServerResolver.resolveAll(episode.servers, cacheKey = "${provider.id}:${episode.number}")
+    override suspend fun resolveServers(episode: Episode): List<ResolvedServer> {
+        // Prefer real animedekho servers (direct mp4/m3u8) for this episode.
+        if (episode.pageUrl.isNotBlank()) {
+            val out = ArrayList<ResolvedServer>()
+            for (s in runCatching { AnimeDekho.servers(episode.pageUrl) }.getOrDefault(emptyList())) {
+                val q = runCatching { AnimeDekho.resolveEmbed(s.url) }.getOrNull() ?: continue
+                out.add(ResolvedServer(s.name, listOf(q)))
+            }
+            if (out.isNotEmpty()) return out
+        }
+        return ServerResolver.resolveAll(episode.servers, cacheKey = "${provider.id}:${episode.number}")
+    }
 
     /** Drop this provider's cached index + details (used on provider switch). */
     fun clearCache() {
@@ -285,14 +299,28 @@ object ZangetsuProvider : AniListProvider() {
 /** AnimeXstream — the original GitHub-hosted library (unchanged logic). */
 object AnimeXstreamProvider : ContentProvider {
     override val provider = Provider.ANIMEXSTREAM
-    override suspend fun loadIndex(force: Boolean) = AnimeRepository.loadIndex(force)
-    override suspend fun loadDetail(slug: String) = AnimeRepository.loadDetail(slug)
+    // Show ALL three providers' catalogues together, de-duplicated by title.
+    override suspend fun loadIndex(force: Boolean): List<Anime> {
+        val merged = LinkedHashMap<String, Anime>()
+        runCatching { AnimeRepository.loadIndex(force) }.getOrDefault(emptyList())
+            .forEach { merged[it.title.lowercase().trim()] = it }
+        runCatching { AnimestreamProvider.loadIndex(force) }.getOrDefault(emptyList())
+            .forEach { merged.putIfAbsent(it.title.lowercase().trim(), it) }
+        runCatching { ZangetsuProvider.loadIndex(force) }.getOrDefault(emptyList())
+            .forEach { merged.putIfAbsent(it.title.lowercase().trim(), it) }
+        return merged.values.toList()
+    }
+    override suspend fun loadDetail(slug: String): AnimeDetail? =
+        AnimeRepository.loadDetail(slug) ?: AnimestreamProvider.loadDetail(slug)
+            ?: ZangetsuProvider.loadDetail(slug)
     override suspend fun search(query: String): List<Anime> {
         val q = query.trim().lowercase()
         if (q.isBlank()) return emptyList()
-        return AnimeRepository.loadIndex().filter {
+        val local = runCatching { AnimeRepository.loadIndex() }.getOrDefault(emptyList()).filter {
             it.title.lowercase().contains(q) || it.genres.any { g -> g.lowercase().contains(q) }
         }
+        val remote = runCatching { AnimestreamProvider.search(query) }.getOrDefault(emptyList())
+        return (local + remote).distinctBy { it.title.lowercase().trim() }
     }
     override suspend fun resolveServers(episode: Episode) =
         ServerResolver.resolveAll(episode.servers, cacheKey = "ax:${episode.number}")

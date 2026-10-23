@@ -158,29 +158,19 @@ fun HomeScreen(
                 }
             }
 
-            // ===== Real streaming-platform rows from AniList externalLinks =====
-            // Each row shows only titles actually available on that platform.
-            // Rows with no real matches are hidden (no generic filler).
-            val platformRows = listOf(
-                Triple("Netflix", AccentPink, listOf("Netflix")),
-                Triple("Disney+ Hotstar", AccentCyan, listOf("Disney Plus", "Disney+", "Hotstar")),
-                Triple("Prime Video", AccentOrange, listOf("Amazon Prime Video", "Prime Video")),
-                Triple("Crunchyroll", PurpleBright, listOf("Crunchyroll"))
-            )
-            platformRows.forEach { (name, color, keys) ->
-                val row = filtered.filter { a ->
-                    a.platforms.any { pl -> keys.any { k -> pl.contains(k, ignoreCase = true) } }
-                }.take(20)
-                if (row.isNotEmpty()) {
-                    Spacer(Modifier.height(24.dp))
-                    PlatformHeader(name, color)
-                    Spacer(Modifier.height(12.dp))
-                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(row.size) { i ->
-                            AnimePosterCard(row[i], width = 120.dp, onClick = { onAnimeClick(row[i].id) })
-                        }
-                    }
-                }
+            // Zangetsu-style content rows (no fake OTT sections)
+            Spacer(Modifier.height(24.dp))
+            SectionHeader("Trending Now", Modifier.padding(horizontal = 16.dp), onSeeAll = onOpenAnimeTab)
+            Spacer(Modifier.height(12.dp))
+            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                val tr = filtered.sortedByDescending { it.rating }
+                items(minOf(tr.size, 20)) { i -> AnimePosterCard(tr[i], width = 120.dp, onClick = { onAnimeClick(tr[i].id) }) }
+            }
+            Spacer(Modifier.height(24.dp))
+            SectionHeader("Popular This Season", Modifier.padding(horizontal = 16.dp), onSeeAll = onOpenAnimeTab)
+            Spacer(Modifier.height(12.dp))
+            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(minOf(filtered.size, 20)) { i -> AnimePosterCard(filtered[i], width = 120.dp, onClick = { onAnimeClick(filtered[i].id) }) }
             }
         }
     }
