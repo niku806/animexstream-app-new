@@ -1,0 +1,51 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        env:
+          FIREBASE_API_KEY_1: ${{ secrets.FIREBASE_API_KEY_1 }}
+          FIREBASE_API_KEY_2: ${{ secrets.FIREBASE_API_KEY_2 }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          GH_UPLOAD_TOKEN: ${{ secrets.GH_UPLOAD_TOKEN }}
+          GH_UPLOAD_OWNER: ${{ secrets.GH_UPLOAD_OWNER }}
+          GH_UPLOAD_REPO: ${{ secrets.GH_UPLOAD_REPO }}
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnimeXstream-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Upload Build Reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-reports
+          path: app/build/reports/
+          retention-days: 7
