@@ -259,7 +259,8 @@ object AnimestreamProvider : AniListProvider() {
 /** Zangetsu — top-rated catalogue from AniList. */
 object ZangetsuProvider : AniListProvider() {
     override val provider = Provider.ZANGETSU
-    override val sort = "SCORE_DESC"
+    // Same catalogue as Animestream — the user wants identical data on both.
+    override val sort = "TRENDING_DESC"
     override val extraFilter = ""
 }
 

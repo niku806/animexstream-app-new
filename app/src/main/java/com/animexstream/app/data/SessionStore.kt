@@ -15,8 +15,7 @@ import java.io.File
  * it here via [backup].
  *
  * Two storage paths, tried in order:
- *  - Android 9 and below: a plain file under public Downloads/AnimeXstream/
- *    (WRITE_EXTERNAL_STORAGE granted).
+ *  - Android 9 and below: a plain file under public Downloads/AnimeXstream/.
  *  - Android 10+: the same public Downloads path via MediaStore, which needs no
  *    runtime permission and survives uninstall.
  *
@@ -34,47 +33,55 @@ object SessionStore {
     fun init(context: Context) { appCtx = context.applicationContext }
 
     // ---------- legacy direct file (API <= 28) ----------
-    private fun legacyFile(): File? = try {
-        @Suppress("DEPRECATION")
-        val dl = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        val dir = File(dl, DIR)
-        if (!dir.exists()) dir.mkdirs()
-        File(dir, FILE)
-    } catch (_: Exception) { null }
+    private fun legacyFile(): File? {
+        return try {
+            @Suppress("DEPRECATION")
+            val dl = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val dir = File(dl, DIR)
+            if (!dir.exists()) dir.mkdirs()
+            File(dir, FILE)
+        } catch (_: Exception) { null }
+    }
 
     // ---------- MediaStore (API >= 29) ----------
-    private fun mediaStoreUri(ctx: Context): android.net.Uri? = try {
-        val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
-        val args = arrayOf(FILE, "Download/$DIR%")
-        ctx.contentResolver.query(collection, arrayOf(MediaStore.MediaColumns._ID), selection, args, null)?.use { c ->
-            if (c.moveToFirst()) {
-                val id = c.getLong(0)
-                android.content.ContentUris.withAppendedId(collection, id)
-            } else null
-        }
-    } catch (_: Exception) { null }
-
-    private fun writeViaMediaStore(ctx: Context, text: String): Boolean = try {
-        val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        var uri = mediaStoreUri(ctx)
-        if (uri == null) {
-            val values = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, FILE)
-                put(MediaStore.MediaColumns.MIME_TYPE, MIME)
-                put(MediaStore.MediaColumns.RELATIVE_PATH, "Download/$DIR")
+    private fun mediaStoreUri(ctx: Context): android.net.Uri? {
+        return try {
+            val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+            val args = arrayOf(FILE, "Download/$DIR%")
+            ctx.contentResolver.query(collection, arrayOf(MediaStore.MediaColumns._ID), selection, args, null)?.use { c ->
+                if (c.moveToFirst()) {
+                    val id = c.getLong(0)
+                    android.content.ContentUris.withAppendedId(collection, id)
+                } else null
             }
-            uri = ctx.contentResolver.insert(collection, values)
-        }
-        if (uri == null) return false
-        ctx.contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray()) }
-        true
-    } catch (_: Exception) { false }
+        } catch (_: Exception) { null }
+    }
 
-    private fun readViaMediaStore(ctx: Context): String? = try {
-        val uri = mediaStoreUri(ctx) ?: return null
-        ctx.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
-    } catch (_: Exception) { null }
+    private fun writeViaMediaStore(ctx: Context, text: String): Boolean {
+        return try {
+            val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            var uri = mediaStoreUri(ctx)
+            if (uri == null) {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, FILE)
+                    put(MediaStore.MediaColumns.MIME_TYPE, MIME)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, "Download/$DIR")
+                }
+                uri = ctx.contentResolver.insert(collection, values)
+            }
+            if (uri == null) return false
+            ctx.contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray()) }
+            true
+        } catch (_: Exception) { false }
+    }
+
+    private fun readViaMediaStore(ctx: Context): String? {
+        return try {
+            val uri = mediaStoreUri(ctx) ?: return null
+            ctx.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+        } catch (_: Exception) { null }
+    }
 
     // ---------- public API ----------
     /** Write the current session to the public file. Silent on failure. */
@@ -123,8 +130,8 @@ object SessionStore {
                 readViaMediaStore(ctx) ?: legacyFile()?.takeIf { it.exists() }?.readText()
             } else {
                 legacyFile()?.takeIf { it.exists() }?.readText()
-            } ?: return false
-            if (text.isBlank()) return false
+            }
+            if (text.isNullOrBlank()) return false
 
             val obj = JSONObject(text)
             val uid = obj.optString("uid")
