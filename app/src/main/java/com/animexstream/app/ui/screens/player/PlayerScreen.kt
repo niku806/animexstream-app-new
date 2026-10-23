@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -249,7 +250,7 @@ fun PlayerScreen(
                 )
             } else {
                 Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = PurplePrimary, modifier = Modifier.size(36.dp))
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp))
                     Spacer(Modifier.height(8.dp))
                     Text(if (loadingServers) "Loading servers…" else "Preparing player…", color = TextSecondary, fontSize = 12.sp)
                 }
@@ -296,7 +297,7 @@ fun PlayerScreen(
                 onClick = { if (!alreadyDl) showDownloadSheet = true },
                 modifier = Modifier.fillMaxWidth().height(46.dp),
                 shape = RoundedCornerShape(50),
-                colors = ButtonDefaults.buttonColors(containerColor = if (alreadyDl) BgCard else PurplePrimary)
+                colors = ButtonDefaults.buttonColors(containerColor = if (alreadyDl) BgCard else MaterialTheme.colorScheme.primary)
             ) {
                 Icon(if (alreadyDl) Icons.Default.Check else Icons.Default.KeyboardArrowDown, null, tint = TextPrimary, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
@@ -313,10 +314,10 @@ fun PlayerScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("S1 E${episodeNumber + 1}", color = PurpleLight, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text("S1 E${episodeNumber + 1}", color = MaterialTheme.colorScheme.secondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     Text(nextEp?.title?.ifBlank { "Episode ${episodeNumber + 1}" } ?: "Coming soon", color = TextPrimary, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Icon(Icons.Default.KeyboardArrowRight, null, tint = PurpleLight)
+                Icon(Icons.Default.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.secondary)
             }
 
             Spacer(Modifier.height(18.dp))
@@ -326,15 +327,27 @@ fun PlayerScreen(
                 (d?.episodes ?: emptyList()).forEach { ep ->
                     val isCurrent = ep.number == episodeNumber
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(BgCard)
-                            .clickable { if (!isCurrent) onNextEpisode(ep.number) }.padding(horizontal = 12.dp, vertical = 10.dp),
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                            .background(if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else BgCard)
+                            .clickable { if (!isCurrent) onNextEpisode(ep.number) }.padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(ep.number.toString(), color = if (isCurrent) PurpleLight else TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(24.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(ep.title.ifBlank { "Episode ${ep.number}" }, color = if (isCurrent) PurpleLight else TextPrimary, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        if (isCurrent) Icon(Icons.Default.Check, null, tint = PurpleLight, modifier = Modifier.size(18.dp))
-                        else Icon(Icons.Default.PlayArrow, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+                        Box(
+                            Modifier.width(104.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)).background(BgCardLight),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (ep.image.isNotBlank()) androidx.compose.foundation.Image(painter = coil.compose.rememberAsyncImagePainter(ep.image), contentDescription = ep.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            else Icon(Icons.Default.PlayArrow, null, tint = TextSecondary, modifier = Modifier.size(22.dp))
+                            if (isCurrent) Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Episode ${ep.number}", color = if (isCurrent) MaterialTheme.colorScheme.secondary else TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(2.dp))
+                            Text(ep.title.ifBlank { "Episode ${ep.number}" }, color = TextPrimary, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        if (isCurrent) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(20.dp))
+                        else Icon(Icons.Default.PlayArrow, null, tint = TextSecondary, modifier = Modifier.size(22.dp))
                     }
                 }
             }
@@ -367,7 +380,7 @@ fun PlayerScreen(
             Spacer(Modifier.height(10.dp))
             if (loadingServers) {
                 Row(Modifier.padding(vertical = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = PurpleLight, strokeWidth = 2.dp)
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.secondary, strokeWidth = 2.dp)
                     Spacer(Modifier.width(10.dp)); Text("Resolving…", color = TextSecondary)
                 }
             } else if (resolvedServers.isEmpty()) {
@@ -409,7 +422,7 @@ fun PlayerScreen(
                         }
                     ) {
                         Text(q.quality, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        if (q.directDownloadUrl != null) Text("Direct", color = PurpleLight, fontSize = 10.sp)
+                        if (q.directDownloadUrl != null) Text("Direct", color = MaterialTheme.colorScheme.secondary, fontSize = 10.sp)
                     }
                 }
             }
@@ -474,7 +487,7 @@ fun PlayerScreen(
                 },
                 modifier = Modifier.fillMaxWidth().height(46.dp),
                 shape = RoundedCornerShape(50),
-                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) { Text("Start Download", color = TextPrimary, fontWeight = FontWeight.SemiBold) }
         }
     }
@@ -514,7 +527,7 @@ private fun GlassRow(selected: Boolean, onClick: () -> Unit, content: @Composabl
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) { content() }
-        if (selected) Icon(Icons.Default.Check, null, tint = PurpleLight, modifier = Modifier.size(18.dp))
+        if (selected) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
     }
 }
 
@@ -525,7 +538,7 @@ private fun GlassSettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVect
             .background(Color(0x14FFFFFF)).clickable { onClick() }.padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, null, tint = PurpleLight, modifier = Modifier.size(20.dp))
+        Icon(icon, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
         Text(label, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
         Text(value, color = TextSecondary, fontSize = 12.sp)
@@ -568,7 +581,7 @@ private fun FullscreenPlayer(
             )
         } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = PurplePrimary)
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         }
 
@@ -600,8 +613,8 @@ private fun FullscreenPlayer(
                                 Modifier.fillMaxWidth().clickable { onServerChange(i); serverPopup = false }.padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(rs.name, color = if (i == selectedServerIdx) PurpleLight else Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                                if (i == selectedServerIdx) Icon(Icons.Default.Check, null, tint = PurpleLight, modifier = Modifier.size(16.dp))
+                                Text(rs.name, color = if (i == selectedServerIdx) MaterialTheme.colorScheme.secondary else Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                if (i == selectedServerIdx) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
@@ -630,8 +643,8 @@ private fun FullscreenPlayer(
                                     Modifier.fillMaxWidth().clickable { onQualityChange(i); qualityPopup = false }.padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(q.quality, color = if (i == selectedQualityIdx) PurpleLight else Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                                    if (i == selectedQualityIdx) Icon(Icons.Default.Check, null, tint = PurpleLight, modifier = Modifier.size(16.dp))
+                                    Text(q.quality, color = if (i == selectedQualityIdx) MaterialTheme.colorScheme.secondary else Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                    if (i == selectedQualityIdx) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -644,7 +657,7 @@ private fun FullscreenPlayer(
 
         if (isLoading) {
             Box(Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = PurplePrimary)
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         }
         if (playerError != null) {

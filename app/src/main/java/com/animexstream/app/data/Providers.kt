@@ -298,3 +298,22 @@ object ContentRepository {
         else -> listOf(ProviderPrefs.selected())
     }
 }
+
+/** Persisted first-run onboarding flag (Zangetsu-style intro pages). */
+object OnboardingPrefs {
+    private const val PREFS = "ax_onboarding_prefs"
+    private const val KEY = "onboarding_done"
+    @Volatile private var prefs: android.content.SharedPreferences? = null
+
+    fun init(context: Context) {
+        if (prefs == null) {
+            prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        }
+    }
+
+    fun isDone(): Boolean = prefs?.getBoolean(KEY, false) == true
+
+    fun markDone() {
+        prefs?.edit()?.putBoolean(KEY, true)?.apply()
+    }
+}

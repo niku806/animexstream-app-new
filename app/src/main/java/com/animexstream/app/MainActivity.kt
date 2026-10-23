@@ -26,6 +26,7 @@ class MainActivity : ComponentActivity() {
         FirebaseConfig.init(applicationContext)
         DownloadManager.init(applicationContext)
         ProviderPrefs.init(applicationContext)
+        com.animexstream.app.data.OnboardingPrefs.init(applicationContext)
         enableEdgeToEdge()
 
         // Hide system navigation bar — immersive full-screen

@@ -22,6 +22,7 @@ import com.animexstream.app.ui.components.AppDrawerContent
 import com.animexstream.app.ui.components.PlaceholderScreen
 import com.animexstream.app.ui.screens.anime.AnimeTabScreen
 import com.animexstream.app.ui.screens.auth.LoginScreen
+import com.animexstream.app.ui.screens.auth.OnboardingScreen
 import com.animexstream.app.ui.screens.auth.SignupScreen
 import com.animexstream.app.ui.screens.auth.SplashScreen
 import com.animexstream.app.ui.screens.community.CommunityScreen
@@ -36,6 +37,7 @@ import kotlinx.coroutines.launch
 
 object Routes {
     const val SPLASH = "splash"
+    const val ONBOARDING = "onboarding"
     const val LOGIN = "login"
     const val SIGNUP = "signup"
     const val HOME = "home"
@@ -82,9 +84,22 @@ fun AppNavGraph(navController: NavHostController = rememberNavController(), onPr
                     modifier = Modifier.fillMaxSize()
                 ) {
                     composable(Routes.SPLASH) {
-                        SplashScreen(onNext = { loggedIn ->
-                            navController.navigate(if (loggedIn) Routes.HOME else Routes.LOGIN) {
+                        SplashScreen(onNext = { loggedIn, onboarded ->
+                            val target = when {
+                                !onboarded -> Routes.ONBOARDING
+                                loggedIn -> Routes.HOME
+                                else -> Routes.LOGIN
+                            }
+                            navController.navigate(target) {
                                 popUpTo(Routes.SPLASH) { inclusive = true }
+                            }
+                        })
+                    }
+                    composable(Routes.ONBOARDING) {
+                        OnboardingScreen(onDone = {
+                            val target = if (AuthRepository.isLoggedIn) Routes.HOME else Routes.LOGIN
+                            navController.navigate(target) {
+                                popUpTo(Routes.ONBOARDING) { inclusive = true }
                             }
                         })
                     }
