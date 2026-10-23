@@ -128,7 +128,7 @@ fun HomeScreen(
             }
         } else {
             SectionHeader(
-                if (selectedGenre == "All") "Popular on AnimeXstream" else selectedGenre,
+                if (selectedGenre == "All") "Popular on " + ProviderPrefs.selected().displayName else selectedGenre,
                 Modifier.padding(horizontal = 16.dp), onSeeAll = onOpenAnimeTab
             )
             Spacer(Modifier.height(12.dp))
@@ -157,7 +157,41 @@ fun HomeScreen(
                     AnimePosterCard(sorted[i], width = 120.dp, onClick = { onAnimeClick(sorted[i].id) })
                 }
             }
+
+            // ===== Streaming-platform rows (Netflix / Disney+ / Prime / Crunchyroll) =====
+            val platforms = listOf(
+                Triple("Netflix", AccentPink, listOf("Action", "Thriller", "Drama", "Mystery")),
+                Triple("Disney+ Hotstar", AccentCyan, listOf("Adventure", "Fantasy", "Family", "Comedy")),
+                Triple("Prime Video", AccentOrange, listOf("Sci-Fi", "Supernatural", "Psychological")),
+                Triple("Crunchyroll", PurpleBright, listOf("Romance", "Slice of Life", "Music", "Sports"))
+            )
+            platforms.forEach { (name, color, gens) ->
+                val row = filtered.filter { a -> a.genres.any { g -> gens.any { it.equals(g, true) } } }
+                    .ifEmpty { filtered.shuffled() }
+                    .take(20)
+                if (row.isNotEmpty()) {
+                    Spacer(Modifier.height(24.dp))
+                    PlatformHeader(name, color)
+                    Spacer(Modifier.height(12.dp))
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(row.size) { i ->
+                            AnimePosterCard(row[i], width = 120.dp, onClick = { onAnimeClick(row[i].id) })
+                        }
+                    }
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun PlatformHeader(name: String, color: Color) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(6.dp, 18.dp).clip(RoundedCornerShape(3.dp)).background(color))
+        Spacer(Modifier.width(8.dp))
+        Text(name, color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(6.dp))
+        Text("Collection", color = TextTertiary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
     }
 }
 
