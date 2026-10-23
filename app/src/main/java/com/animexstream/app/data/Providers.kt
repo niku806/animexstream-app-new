@@ -168,15 +168,15 @@ abstract class AniListProvider : ContentProvider {
     override suspend fun search(query: String): List<Anime> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext emptyList()
         val q = """
-            query($search: String) {
+            query(${'$'}search: String) {
               Page(page: 1, perPage: 30) {
-                media(type: ANIME, search: $search, isAdult: false, sort: SEARCH_MATCH) {
+                media(type: ANIME, search: ${'$'}search, isAdult: false, sort: SEARCH_MATCH) {
                   id title { romaji english } coverImage { large extraLarge }
                   genres averageScore startDate { year } episodes description(asHtml: false)
                 }
               }
             }
-        """.trimIndent().replace("$search", "\$search")
+        """.trimIndent()
         val data = ProviderHttp.anilist(q, mapOf("search" to query)) ?: return@withContext emptyList()
         val media = data.optJSONObject("Page")?.optJSONArray("media") ?: JSONArray()
         val out = ArrayList<Anime>()
@@ -188,14 +188,14 @@ abstract class AniListProvider : ContentProvider {
         detailCache[slug]?.let { return@withContext it }
         val id = slug.toIntOrNull() ?: return@withContext null
         val q = """
-            query($id: Int) {
-              Media(id: $id, type: ANIME) {
+            query(${'$'}id: Int) {
+              Media(id: ${'$'}id, type: ANIME) {
                 id title { romaji english } coverImage { large extraLarge }
                 bannerImage genres averageScore startDate { year } episodes
                 description(asHtml: false) status format
               }
             }
-        """.trimIndent().replace("$id", "\$id")
+        """.trimIndent()
         val data = ProviderHttp.anilist(q, mapOf("id" to id)) ?: return@withContext null
         val m = data.optJSONObject("Media") ?: return@withContext null
         val anime = m.toAnime() ?: return@withContext null
