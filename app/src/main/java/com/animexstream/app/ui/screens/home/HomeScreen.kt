@@ -158,17 +158,19 @@ fun HomeScreen(
                 }
             }
 
-            // ===== Streaming-platform rows (Netflix / Disney+ / Prime / Crunchyroll) =====
-            val platforms = listOf(
-                Triple("Netflix", AccentPink, listOf("Action", "Thriller", "Drama", "Mystery")),
-                Triple("Disney+ Hotstar", AccentCyan, listOf("Adventure", "Fantasy", "Family", "Comedy")),
-                Triple("Prime Video", AccentOrange, listOf("Sci-Fi", "Supernatural", "Psychological")),
-                Triple("Crunchyroll", PurpleBright, listOf("Romance", "Slice of Life", "Music", "Sports"))
+            // ===== Real streaming-platform rows from AniList externalLinks =====
+            // Each row shows only titles actually available on that platform.
+            // Rows with no real matches are hidden (no generic filler).
+            val platformRows = listOf(
+                Triple("Netflix", AccentPink, listOf("Netflix")),
+                Triple("Disney+ Hotstar", AccentCyan, listOf("Disney Plus", "Disney+", "Hotstar")),
+                Triple("Prime Video", AccentOrange, listOf("Amazon Prime Video", "Prime Video")),
+                Triple("Crunchyroll", PurpleBright, listOf("Crunchyroll"))
             )
-            platforms.forEach { (name, color, gens) ->
-                val row = filtered.filter { a -> a.genres.any { g -> gens.any { it.equals(g, true) } } }
-                    .ifEmpty { filtered.shuffled() }
-                    .take(20)
+            platformRows.forEach { (name, color, keys) ->
+                val row = filtered.filter { a ->
+                    a.platforms.any { pl -> keys.any { k -> pl.contains(k, ignoreCase = true) } }
+                }.take(20)
                 if (row.isNotEmpty()) {
                     Spacer(Modifier.height(24.dp))
                     PlatformHeader(name, color)

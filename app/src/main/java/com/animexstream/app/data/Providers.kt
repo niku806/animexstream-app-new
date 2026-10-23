@@ -110,6 +110,15 @@ internal fun JSONObject.toAnime(): Anime? {
         ?: optJSONObject("coverImage")?.optString("extraLarge") ?: ""
     val year = optJSONObject("startDate")?.optInt("year", 0) ?: 0
     val score = optDouble("averageScore", 0.0)
+    // Real streaming platforms from AniList externalLinks (site + url).
+    val platforms = ArrayList<String>()
+    optJSONArray("externalLinks")?.let { links ->
+        for (i in 0 until links.length()) {
+            val l = links.optJSONObject(i) ?: continue
+            val site = l.optString("site")
+            if (site.isNotBlank()) platforms.add(site)
+        }
+    }
     return Anime(
         id = id.toString(),
         title = title,
@@ -119,6 +128,7 @@ internal fun JSONObject.toAnime(): Anime? {
         totalEpisodes = optInt("episodes", 0),
         synopsis = optString("description").replace(Regex("<[^>]+>"), "").trim(),
         rating = if (score > 0) score / 10.0 else 0.0,
+        platforms = platforms,
     )
 }
 
@@ -148,6 +158,7 @@ abstract class AniListProvider : ContentProvider {
               startDate { year }
               episodes
               description(asHtml: false)
+              externalLinks { site url }
             }
           }
         }
@@ -173,6 +184,7 @@ abstract class AniListProvider : ContentProvider {
                 media(type: ANIME, search: ${'$'}search, isAdult: false, sort: SEARCH_MATCH) {
                   id title { romaji english } coverImage { large extraLarge }
                   genres averageScore startDate { year } episodes description(asHtml: false)
+                  externalLinks { site url }
                 }
               }
             }
@@ -247,6 +259,12 @@ abstract class AniListProvider : ContentProvider {
 
     override suspend fun resolveServers(episode: Episode): List<ResolvedServer> =
         ServerResolver.resolveAll(episode.servers, cacheKey = "${provider.id}:${episode.number}")
+
+    /** Drop this provider's cached index + details (used on provider switch). */
+    fun clearCache() {
+        indexCache = null
+        detailCache.clear()
+    }
 }
 
 /** Animestream — trending catalogue from AniList. */
@@ -286,6 +304,14 @@ object ContentRepository {
         Provider.ANIMEXSTREAM -> AnimeXstreamProvider
         Provider.ANIMESTREAM -> AnimestreamProvider
         Provider.ZANGETSU -> ZangetsuProvider
+    }
+
+    /** Drops every provider's in-memory caches so a switch never leaks old data. */
+    fun clearAll() {
+        AnimeRepository.clearCache()
+        ServerResolver.clearCache()
+        AnimestreamProvider.clearCache()
+        ZangetsuProvider.clearCache()
     }
 
     suspend fun loadIndex(force: Boolean = false) = current().loadIndex(force)

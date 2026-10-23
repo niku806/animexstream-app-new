@@ -10,6 +10,9 @@ data class Anime(
     val totalEpisodes: Int = 0,
     val synopsis: String = "",
     val rating: Double = 0.0,
+    // Real streaming platforms this title is available on (e.g. "Netflix",
+    // "Disney Plus", "Amazon Prime Video"), derived from AniList externalLinks.
+    val platforms: List<String> = emptyList(),
 ) {
     val slug: String get() = id
 }

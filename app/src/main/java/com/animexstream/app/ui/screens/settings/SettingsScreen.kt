@@ -48,9 +48,9 @@ fun SettingsScreen(onBack: () -> Unit, onProviderChanged: () -> Unit = {}) {
                         if (selected != p) {
                             selected = p
                             ProviderPrefs.set(p)
-                            // Reset all provider-scoped caches so the new data loads fresh.
-                            com.animexstream.app.data.AnimeRepository.clearCache()
-                            com.animexstream.app.data.ServerResolver.clearCache()
+                            // Reset EVERY provider's caches so the newly-selected
+                            // provider's data shows and nothing leaks from the old one.
+                            ContentRepository.clearAll()
                             onProviderChanged()
                         }
                     }
