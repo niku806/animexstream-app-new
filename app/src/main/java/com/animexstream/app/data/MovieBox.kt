@@ -50,35 +50,13 @@ object MovieBox {
     )
     private val jsonType = "application/json; charset=utf-8".toMediaType()
 
+    // Plain OkHttp: system proxy and normal TLS validation are left untouched.
     private val client = OkHttpClient.Builder()
-        .proxy(java.net.Proxy.NO_PROXY)
-        .connectTimeout(6, TimeUnit.SECONDS)
-        .readTimeout(12, TimeUnit.SECONDS)
-        .callTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .callTimeout(25, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
-
-    // Fallback client that trusts all certificates - some devices/ISPs strip
-    // the intermediate CA so the aoneroom.com chain fails verification.
-    private val trustAllClient: OkHttpClient by lazy {
-        val trustAll = object : javax.net.ssl.X509TrustManager {
-            override fun checkClientTrusted(chain: Array<out java.security.cert.X509Certificate>?, authType: String?) {}
-            override fun checkServerTrusted(chain: Array<out java.security.cert.X509Certificate>?, authType: String?) {}
-            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = emptyArray()
-        }
-        val sslCtx = javax.net.ssl.SSLContext.getInstance("TLS").apply {
-            init(null, arrayOf(trustAll), java.security.SecureRandom())
-        }
-        val builder = OkHttpClient.Builder()
-            .proxy(java.net.Proxy.NO_PROXY)
-            .connectTimeout(6, TimeUnit.SECONDS)
-            .readTimeout(12, TimeUnit.SECONDS)
-            .callTimeout(15, TimeUnit.SECONDS)
-            .retryOnConnectionFailure(true)
-            .sslSocketFactory(sslCtx.socketFactory, trustAll)
-            .hostnameVerifier { _, _ -> true }
-        builder.build()
-    }
 
     // ---------- device identity (stable per install) ----------
     private val versionCode = 50020120
@@ -148,27 +126,12 @@ object MovieBox {
     }
 
     private fun sign(method: String, url: String, body: String?, ts: Long): String {
-        val canonicalStr = canonical(method, url, body, ts)
-        val sig = hmacMd5Manual(SECRET, canonicalStr.toByteArray(Charsets.UTF_8))
+        val mac = Mac.getInstance("HmacMD5")
+        mac.init(SecretKeySpec(SECRET, "HmacMD5"))
+        val sig = mac.doFinal(canonical(method, url, body, ts).toByteArray(Charsets.UTF_8))
         return "$ts|2|" + Base64.encodeToString(sig, Base64.NO_WRAP)
     }
 
-    // Manual HMAC-MD5 - works on every Android device (some lack HmacMD5 provider).
-    private fun hmacMd5Manual(key: ByteArray, data: ByteArray): ByteArray {
-        val blockSize = 64
-        val md5 = MessageDigest.getInstance("MD5")
-        val keyBlock = if (key.size > blockSize) md5.digest(key) else key.copyOf(blockSize)
-        val oKeyPad = ByteArray(blockSize) { (keyBlock[it].toInt() xor 0x5c).toByte() }
-        val iKeyPad = ByteArray(blockSize) { (keyBlock[it].toInt() xor 0x36).toByte() }
-        md5.reset()
-        md5.update(iKeyPad)
-        md5.update(data)
-        val inner = md5.digest()
-        md5.reset()
-        md5.update(oKeyPad)
-        md5.update(inner)
-        return md5.digest()
-    }
 
     // ---------- transport ----------
     private fun rawRequest(method: String, path: String, body: String?, auth: String?): JSONObject? {
@@ -195,7 +158,7 @@ object MovieBox {
                 }
                 .build()
             try {
-                (if (i == 0) client else trustAllClient).newCall(req).execute().use { r ->
+                client.newCall(req).execute().use { r ->
                     if (!r.isSuccessful) {
                         setError("HTTP ${r.code} from ${HOSTS[idx]}")
                         return@use

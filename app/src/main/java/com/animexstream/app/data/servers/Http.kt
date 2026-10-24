@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
 
 object Http {
     val client: OkHttpClient = OkHttpClient.Builder()
-        .proxy(java.net.Proxy.NO_PROXY)
+        
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(25, TimeUnit.SECONDS)
         .followRedirects(true)

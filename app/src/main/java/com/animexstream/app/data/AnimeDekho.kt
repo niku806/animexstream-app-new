@@ -36,7 +36,7 @@ object AnimeDekho {
     }
 
     private val client = OkHttpClient.Builder()
-        .proxy(java.net.Proxy.NO_PROXY)
+        
         .cookieJar(jar)
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
