@@ -18,6 +18,18 @@ object AuthRepository {
     val displayName: String? get() = UserPrefs.displayName() ?: UserPrefs.username()
     val iconLink: String? get() = UserPrefs.icon()
 
+    /** Guest mode: a local-only session that skips GitHub auth entirely. */
+    fun signInAsGuest() {
+        val guestId = "guest_" + System.currentTimeMillis()
+        UserPrefs.saveSession(
+            uid = guestId,
+            username = "guest",
+            email = "guest@local",
+            icon = "",
+            name = "Guest",
+        )
+    }
+
     suspend fun signUp(email: String, username: String, password: String, displayName: String, iconLink: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             val mail = email.trim().lowercase()

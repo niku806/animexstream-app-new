@@ -29,6 +29,7 @@ object GitHubDb {
     private const val POSTS_PATH = "community/posts.json"
 
     private val client = OkHttpClient.Builder()
+        .proxy(java.net.Proxy.NO_PROXY)
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)

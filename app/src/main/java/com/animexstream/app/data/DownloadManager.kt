@@ -76,7 +76,7 @@ object DownloadManager {
             val f = File(dir, "${id.replace(Regex("[^A-Za-z0-9._-]"), "_")}_thumb.jpg")
             if (f.exists() && f.length() > 1024) return f.absolutePath
             val req = okhttp3.Request.Builder().url(url).header("User-Agent", "Mozilla/5.0").build()
-            okhttp3.OkHttpClient.Builder().connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS).build()
+            okhttp3.OkHttpClient.Builder().proxy(java.net.Proxy.NO_PROXY).connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS).build()
                 .newCall(req).execute().use { r ->
                     if (!r.isSuccessful) return null
                     r.body?.byteStream()?.use { input -> f.outputStream().use { input.copyTo(it) } }
@@ -146,6 +146,7 @@ object DownloadManager {
 
         try {
             val client = okhttp3.OkHttpClient.Builder()
+                .proxy(java.net.Proxy.NO_PROXY)
                 .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                 .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
                 .build()

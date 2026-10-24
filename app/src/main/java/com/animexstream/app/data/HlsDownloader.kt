@@ -20,6 +20,7 @@ object HlsDownloader {
     private const val PARALLEL = 6
 
     private val client = OkHttpClient.Builder()
+        .proxy(java.net.Proxy.NO_PROXY)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)

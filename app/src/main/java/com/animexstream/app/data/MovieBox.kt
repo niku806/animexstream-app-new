@@ -51,6 +51,7 @@ object MovieBox {
     private val jsonType = "application/json; charset=utf-8".toMediaType()
 
     private val client = OkHttpClient.Builder()
+        .proxy(java.net.Proxy.NO_PROXY)
         .connectTimeout(6, TimeUnit.SECONDS)
         .readTimeout(12, TimeUnit.SECONDS)
         .callTimeout(15, TimeUnit.SECONDS)
@@ -69,6 +70,7 @@ object MovieBox {
             init(null, arrayOf(trustAll), java.security.SecureRandom())
         }
         val builder = OkHttpClient.Builder()
+            .proxy(java.net.Proxy.NO_PROXY)
             .connectTimeout(6, TimeUnit.SECONDS)
             .readTimeout(12, TimeUnit.SECONDS)
             .callTimeout(15, TimeUnit.SECONDS)

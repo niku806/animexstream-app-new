@@ -134,6 +134,25 @@ fun LoginScreen(onLoggedIn: () -> Unit, onGoSignup: () -> Unit) {
                 }
             }
 
+            Spacer(Modifier.height(16.dp))
+            // Guest mode — skip auth, browse and play immediately.
+            Box(
+                Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(16.dp))
+                    .background(Color(0x22FFFFFF))
+                    .border(1.dp, Color(0x44FFFFFF), RoundedCornerShape(16.dp))
+                    .clickable {
+                        AuthRepository.signInAsGuest()
+                        onLoggedIn()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Person, null, tint = TextPrimary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Continue as Guest", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+
             Spacer(Modifier.height(20.dp))
             Row {
                 Text("Don't have an account? ", color = TextSecondary, fontSize = 13.sp)

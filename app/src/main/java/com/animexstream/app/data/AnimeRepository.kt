@@ -18,6 +18,7 @@ object AnimeRepository {
     private const val DATA_DIR = "anime-data"
 
     private val client = OkHttpClient.Builder()
+        .proxy(java.net.Proxy.NO_PROXY)
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()

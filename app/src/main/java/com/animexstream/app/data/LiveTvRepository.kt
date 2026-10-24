@@ -17,7 +17,7 @@ data class LiveChannel(
 
 object LiveTvRepository {
     private const val URL = "https://raw.githubusercontent.com/niku806/DUMPER/main/live-tv.json"
-    private val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).build()
+    private val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).proxy(java.net.Proxy.NO_PROXY).build()
     private var cache: List<LiveChannel>? = null
 
     suspend fun getChannels(): List<LiveChannel> = withContext(Dispatchers.IO) {
