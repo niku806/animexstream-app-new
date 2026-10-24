@@ -30,7 +30,17 @@ import kotlin.random.Random
  */
 object MovieBox {
 
-    private const val HOST = "https://api6.aoneroom.com"
+    // Multiple API mirrors — one blocked/slow host never empties the app.
+    private val HOSTS = listOf(
+        "https://api6.aoneroom.com",
+        "https://api5.aoneroom.com",
+        "https://api4.aoneroom.com",
+        "https://api4sg.aoneroom.com",
+        "https://api3.aoneroom.com",
+        "https://api6sg.aoneroom.com",
+        "https://api.inmoviebox.com",
+    )
+    @Volatile private var activeHost = 0
     private const val STREAM_REFERER = "https://sportslive.wine"
     private val SECRET = byteArrayOf(
         0xEF.toByte(), 0xA8.toByte(), 0x91.toByte(), 0x97.toByte(), 0x4E, 0xEC.toByte(), 0xD3.toByte(), 0x14,
@@ -92,7 +102,8 @@ object MovieBox {
     }
 
     private fun canonical(method: String, url: String, body: String?, ts: Long): String {
-        val path = url.substringAfter(HOST).substringBefore('?')
+        val uri = runCatching { java.net.URI(url) }.getOrNull()
+        val path = uri?.path ?: url.substringAfter("://").substringAfter('/').let { "/$it" }.substringBefore('?')
         val sq = sortedQuery(url)
         val canonicalUrl = if (sq.isEmpty()) path else "$path?$sq"
         val bodyBytes = body?.toByteArray()
@@ -117,31 +128,45 @@ object MovieBox {
 
     // ---------- transport ----------
     private fun rawRequest(method: String, path: String, body: String?, auth: String?): JSONObject? {
-        val url = HOST + path
-        val ts = System.currentTimeMillis()
-        val req = Request.Builder().url(url)
-            .header("User-Agent", userAgent)
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/json")
-            .header("Connection", "keep-alive")
-            .header("x-client-token", xClientToken(ts))
-            .header("x-tr-signature", sign(method, url, body, ts))
-            .header("x-client-info", clientInfo)
-            .header("x-client-status", "0")
-            .header("x-forwarded-for", spoofIp())
-            .apply { if (auth != null) header("Authorization", "Bearer $auth") }
-            .apply {
-                if (method == "POST") post((body ?: "{}").toRequestBody(jsonType))
-                else get()
-            }
-            .build()
-        return try {
-            client.newCall(req).execute().use { r ->
-                if (!r.isSuccessful) return null
-                val text = r.body?.string() ?: return null
-                JSONObject(text)
-            }
-        } catch (_: Exception) { null }
+        val start = activeHost
+        for (i in HOSTS.indices) {
+            val idx = (start + i) % HOSTS.size
+            val url = HOSTS[idx] + path
+            val ts = System.currentTimeMillis()
+            val req = Request.Builder().url(url)
+                .header("User-Agent", userAgent)
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .header("Connection", "keep-alive")
+                .header("x-client-token", xClientToken(ts))
+                .header("x-tr-signature", sign(method, url, body, ts))
+                .header("x-client-info", clientInfo)
+                .header("x-client-status", "0")
+                .header("x-forwarded-for", spoofIp())
+                .apply { if (auth != null) header("Authorization", "Bearer $auth") }
+                .apply {
+                    if (method == "POST") post((body ?: "{}").toRequestBody(jsonType))
+                    else get()
+                }
+                .build()
+            try {
+                client.newCall(req).execute().use { r ->
+                    if (!r.isSuccessful) return@use
+                    val text = r.body?.string()
+                    if (text.isNullOrBlank()) return@use
+                    val json = runCatching { JSONObject(text) }.getOrNull() ?: return@use
+                    // MovieBox returns { code: <n>, ... } where 0/200 = success.
+                    // Anything else is an error — try the next host.
+                    if (json.has("code")) {
+                        val code = json.optInt("code", -1)
+                        if (code != 0 && code != 200) return@use
+                    }
+                    activeHost = idx
+                    return json
+                }
+            } catch (_: Exception) { /* try next host */ }
+        }
+        return null
     }
 
     private fun ensureToken(): String? {

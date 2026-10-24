@@ -62,9 +62,10 @@ fun HomeScreen(
     var loading by remember { mutableStateOf(true) }
     var selectedGenre by remember { mutableStateOf("All") }
     var continueItems by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var retryTick by remember { mutableStateOf(0) }
     val scroll = rememberScrollState()
 
-    LaunchedEffect(selectedProvider) {
+    LaunchedEffect(selectedProvider, retryTick) {
         loading = true
         mbRails = emptyList()
         allAnime = emptyList()
@@ -72,6 +73,15 @@ fun HomeScreen(
             val rails = runCatching { MovieBox.homeRails() }.getOrDefault(emptyList())
             mbRails = rails
             allAnime = rails.flatMap { it.second }.distinctBy { it.id }
+            // All mirrors down / API error -> sweep keywords so home is never blank.
+            if (allAnime.isEmpty()) {
+                val fb = LinkedHashMap<String, Anime>()
+                for (kw in listOf("movie", "series", "anime", "hindi", "action", "comedy", "drama")) {
+                    runCatching { MovieBox.search(kw) }.getOrDefault(emptyList())
+                        .forEach { fb.putIfAbsent(it.id, it) }
+                }
+                allAnime = fb.values.toList()
+            }
         } else {
             allAnime = runCatching { ContentRepository.loadIndex() }.getOrDefault(emptyList())
         }
@@ -155,52 +165,21 @@ fun HomeScreen(
             Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
+        } else if (filtered.isEmpty() && mbRails.isEmpty()) {
+            // Nothing loaded — show a retry prompt instead of empty headers.
+            Box(Modifier.fillMaxWidth().height(280.dp), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("No content loaded", color = TextSecondary, fontSize = 14.sp)
+                    Spacer(Modifier.height(12.dp))
+                    PurplePillButton("Retry", onClick = { retryTick++ })
+                }
+            }
         } else {
-            SectionHeader(
-                if (selectedGenre == "All") "Popular on " + ProviderPrefs.selected().displayName else selectedGenre,
-                Modifier.padding(horizontal = 16.dp), onSeeAll = onOpenAnimeTab
-            )
-            Spacer(Modifier.height(12.dp))
-            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(minOf(filtered.size, 20)) { i ->
-                    AnimePosterCard(filtered[i], width = 120.dp, onClick = { onAnimeClick(filtered[i].id) })
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-            SectionHeader("New Releases", Modifier.padding(horizontal = 16.dp), onSeeAll = onOpenAnimeTab)
-            Spacer(Modifier.height(12.dp))
-            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(minOf(filtered.size, 20)) { i ->
-                    val a = filtered[filtered.size - 1 - i]
-                    AnimePosterCard(a, width = 120.dp, onClick = { onAnimeClick(a.id) })
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-            SectionHeader("Top Rated", Modifier.padding(horizontal = 16.dp), onSeeAll = onOpenAnimeTab)
-            Spacer(Modifier.height(12.dp))
-            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                val sorted = filtered.sortedByDescending { it.rating }
-                items(minOf(sorted.size, 20)) { i ->
-                    AnimePosterCard(sorted[i], width = 120.dp, onClick = { onAnimeClick(sorted[i].id) })
-                }
-            }
-
-            // Zangetsu-style content rows (no fake OTT sections)
-            Spacer(Modifier.height(24.dp))
-            SectionHeader("Trending Now", Modifier.padding(horizontal = 16.dp), onSeeAll = onOpenAnimeTab)
-            Spacer(Modifier.height(12.dp))
-            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                val tr = filtered.sortedByDescending { it.rating }
-                items(minOf(tr.size, 20)) { i -> AnimePosterCard(tr[i], width = 120.dp, onClick = { onAnimeClick(tr[i].id) }) }
-            }
-            Spacer(Modifier.height(24.dp))
-            SectionHeader("Popular This Season", Modifier.padding(horizontal = 16.dp), onSeeAll = onOpenAnimeTab)
-            Spacer(Modifier.height(12.dp))
-            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(minOf(filtered.size, 20)) { i -> AnimePosterCard(filtered[i], width = 120.dp, onClick = { onAnimeClick(filtered[i].id) }) }
-            }
+            HomeRow("Popular on " + ProviderPrefs.selected().displayName, filtered, onAnimeClick, onOpenAnimeTab)
+            HomeRow("New Releases", filtered.reversed(), onAnimeClick, onOpenAnimeTab)
+            HomeRow("Top Rated", filtered.sortedByDescending { it.rating }, onAnimeClick, onOpenAnimeTab)
+            HomeRow("Trending Now", filtered.sortedByDescending { it.rating }, onAnimeClick, onOpenAnimeTab)
+            HomeRow("Popular This Season", filtered, onAnimeClick, onOpenAnimeTab)
         }
     }
 }
@@ -351,5 +330,17 @@ private fun ContinueCard(title: String, poster: String, ep: Int, onClick: () -> 
         Spacer(Modifier.height(6.dp))
         Text(title, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text("Ep $ep", color = MaterialTheme.colorScheme.secondary, fontSize = 10.sp)
+    }
+}
+
+@Composable
+private fun HomeRow(title: String, items: List<Anime>, onClick: (String) -> Unit, onSeeAll: () -> Unit) {
+    val limited = items.take(20)
+    if (limited.isEmpty()) return
+    Spacer(Modifier.height(24.dp))
+    SectionHeader(title, Modifier.padding(horizontal = 16.dp), onSeeAll = onSeeAll)
+    Spacer(Modifier.height(12.dp))
+    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(limited.size) { i -> AnimePosterCard(limited[i], width = 120.dp, onClick = { onClick(limited[i].id) }) }
     }
 }

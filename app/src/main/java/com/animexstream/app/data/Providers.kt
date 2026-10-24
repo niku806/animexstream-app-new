@@ -336,6 +336,14 @@ object MovieBoxProvider : ContentProvider {
         runCatching { MovieBox.homeRails() }.getOrDefault(emptyList()).forEach { (_, list) ->
             list.forEach { seen.putIfAbsent(it.id, it) }
         }
+        // If the rails came back empty (all mirrors down / API error), fall back
+        // to a keyword sweep so the home screen is never blank.
+        if (seen.isEmpty()) {
+            for (kw in listOf("movie", "series", "anime", "hindi", "action", "comedy", "drama")) {
+                runCatching { MovieBox.search(kw) }.getOrDefault(emptyList())
+                    .forEach { seen.putIfAbsent(it.id, it) }
+            }
+        }
         return seen.values.toList()
     }
     override suspend fun loadDetail(slug: String) = MovieBox.detail(slug)
