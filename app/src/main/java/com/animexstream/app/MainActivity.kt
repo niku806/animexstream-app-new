@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -19,6 +20,7 @@ import com.animexstream.app.data.ProviderPrefs
 import com.animexstream.app.navigation.AppNavGraph
 import com.animexstream.app.ui.theme.AnimeXTheme
 import com.animexstream.app.ui.theme.BgDark
+import com.animexstream.app.ui.theme.LocalSelectedProvider
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,10 +43,22 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            // Re-key the whole theme tree when the provider changes so accents
-            // and the catalogue both switch live from Settings.
-            var providerVersion by mutableStateOf(0)
-            AppProviderHost(onProviderChanged = { providerVersion++ }, version = providerVersion)
+            // Provider lives in a state: changing it recomposes the theme + the
+            // data screens IN PLACE. The NavHost is never re-keyed, so the user
+            // stays on the screen they were on instead of being bounced back to
+            // the splash (which is what made the app look "empty" after a switch).
+            var provider by mutableStateOf(ProviderPrefs.selected())
+            CompositionLocalProvider(LocalSelectedProvider provides provider) {
+                AnimeXTheme {
+                    Surface(modifier = Modifier.fillMaxSize().background(BgDark)) {
+                        AppNavGraph(
+                            onProviderChanged = {
+                                provider = ProviderPrefs.selected()
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -54,17 +68,6 @@ class MainActivity : ComponentActivity() {
             WindowInsetsControllerCompat(window, window.decorView).apply {
                 hide(WindowInsetsCompat.Type.navigationBars())
                 systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
-        }
-    }
-}
-
-@androidx.compose.runtime.Composable
-private fun AppProviderHost(onProviderChanged: () -> Unit, version: Int) {
-    androidx.compose.runtime.key(version) {
-        AnimeXTheme {
-            Surface(modifier = Modifier.fillMaxSize().background(BgDark)) {
-                AppNavGraph(onProviderChanged = onProviderChanged)
             }
         }
     }

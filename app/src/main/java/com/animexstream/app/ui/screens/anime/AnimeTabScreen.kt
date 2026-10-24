@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.animexstream.app.data.Anime
 import com.animexstream.app.data.ContentRepository
+import com.animexstream.app.ui.theme.LocalSelectedProvider
 import com.animexstream.app.data.UserPrefs
 import com.animexstream.app.ui.components.*
 import com.animexstream.app.ui.theme.*
@@ -46,9 +47,10 @@ fun AnimeTabScreen(
     var selectedGenre by remember { mutableStateOf("All") }
     var continueItems by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
 
-    LaunchedEffect(Unit) {
+    val selectedProvider = LocalSelectedProvider.current
+    LaunchedEffect(selectedProvider) {
         loading = true
-        allAnime = ContentRepository.loadIndex()
+        allAnime = runCatching { ContentRepository.loadIndex() }.getOrDefault(emptyList())
         continueItems = UserPrefs.continueList()
         loading = false
     }

@@ -55,7 +55,8 @@ fun HomeScreen(
     onOpenAnimeTab: () -> Unit = {},
     onCategoryClick: (String) -> Unit = {}
 ) {
-    val isMovieBox = ProviderPrefs.selected() == Provider.MOVIEBOX
+    val selectedProvider = com.animexstream.app.ui.theme.LocalSelectedProvider.current
+    val isMovieBox = selectedProvider == Provider.MOVIEBOX
     var allAnime by remember { mutableStateOf<List<Anime>>(emptyList()) }
     var mbRails by remember { mutableStateOf<List<Pair<String, List<Anime>>>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -63,14 +64,16 @@ fun HomeScreen(
     var continueItems by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     val scroll = rememberScrollState()
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(selectedProvider) {
         loading = true
+        mbRails = emptyList()
+        allAnime = emptyList()
         if (isMovieBox) {
             val rails = runCatching { MovieBox.homeRails() }.getOrDefault(emptyList())
             mbRails = rails
             allAnime = rails.flatMap { it.second }.distinctBy { it.id }
         } else {
-            allAnime = ContentRepository.loadIndex()
+            allAnime = runCatching { ContentRepository.loadIndex() }.getOrDefault(emptyList())
         }
         continueItems = UserPrefs.continueList()
         loading = false

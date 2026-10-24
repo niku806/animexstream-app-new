@@ -4,25 +4,26 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import com.animexstream.app.data.Provider
-import com.animexstream.app.data.ProviderPrefs
 
-/** The accent colour of the currently-selected provider, readable anywhere. */
-val LocalProviderAccent = staticCompositionLocalOf { Color(Provider.ANIMEXSTREAM.accent) }
-val LocalProviderAccentSoft = staticCompositionLocalOf { Color(Provider.ANIMEXSTREAM.accentSoft) }
+/** The provider currently selected, readable anywhere in the tree. */
+val LocalSelectedProvider = compositionLocalOf { Provider.ANIMEXSTREAM }
+
+/** The accent colour of the currently-selected provider. */
+val LocalProviderAccent = compositionLocalOf { Color(Provider.ANIMEXSTREAM.accent) }
+val LocalProviderAccentSoft = compositionLocalOf { Color(Provider.ANIMEXSTREAM.accentSoft) }
 
 /**
- * Zangetsu-styled dark theme (deep near-black backgrounds, red-first accents)
- * whose primary/secondary colours follow the selected provider:
- *  - AnimeXstream -> purple
- *  - Animestream -> lime
- *  - Zangetsu    -> red
+ * Zangetsu-styled dark theme (deep near-black backgrounds) whose primary and
+ * secondary colours follow the selected provider, read from the composition
+ * local so changing the provider recomposes the tree WITHOUT destroying the
+ * navigation host.
  */
 @Composable
 fun AnimeXTheme(content: @Composable () -> Unit) {
-    val provider = ProviderPrefs.selected()
+    val provider = LocalSelectedProvider.current
     val accent = Color(provider.accent)
     val accentSoft = Color(provider.accentSoft)
 

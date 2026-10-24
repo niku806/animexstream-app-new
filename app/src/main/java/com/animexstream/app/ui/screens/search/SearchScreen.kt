@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.animexstream.app.data.Anime
 import com.animexstream.app.data.ContentRepository
+import com.animexstream.app.ui.theme.LocalSelectedProvider
 import com.animexstream.app.ui.components.*
 import com.animexstream.app.ui.theme.*
 
@@ -31,9 +32,10 @@ fun SearchScreen(onAnimeClick: (String) -> Unit) {
     var all by remember { mutableStateOf<List<Anime>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) {
+    val selectedProvider = LocalSelectedProvider.current
+    LaunchedEffect(selectedProvider) {
         loading = true
-        all = ContentRepository.loadIndex()
+        all = runCatching { ContentRepository.loadIndex() }.getOrDefault(emptyList())
         loading = false
     }
 
