@@ -57,6 +57,27 @@ object MovieBox {
         .retryOnConnectionFailure(true)
         .build()
 
+    // Fallback client that trusts all certificates - some devices/ISPs strip
+    // the intermediate CA so the aoneroom.com chain fails verification.
+    private val trustAllClient: OkHttpClient by lazy {
+        val trustAll = object : javax.net.ssl.X509TrustManager {
+            override fun checkClientTrusted(chain: Array<out java.security.cert.X509Certificate>?, authType: String?) {}
+            override fun checkServerTrusted(chain: Array<out java.security.cert.X509Certificate>?, authType: String?) {}
+            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = emptyArray()
+        }
+        val sslCtx = javax.net.ssl.SSLContext.getInstance("TLS").apply {
+            init(null, arrayOf(trustAll), java.security.SecureRandom())
+        }
+        val builder = OkHttpClient.Builder()
+            .connectTimeout(6, TimeUnit.SECONDS)
+            .readTimeout(12, TimeUnit.SECONDS)
+            .callTimeout(15, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .sslSocketFactory(sslCtx.socketFactory, trustAll)
+            .hostnameVerifier { _, _ -> true }
+        builder.build()
+    }
+
     // ---------- device identity (stable per install) ----------
     private val versionCode = 50020120
     private val deviceId = randomHex(32)
@@ -85,6 +106,9 @@ object MovieBox {
     }.toString()
 
     @Volatile private var token: String? = null
+    @Volatile private var lastError: String? = null
+    fun getLastError(): String? = lastError
+    private fun setError(msg: String?) { lastError = msg }
 
     private fun randomHex(n: Int) = (0 until n).map { "0123456789abcdef".random() }.joinToString("")
     private fun randomUuid() = "${randomHex(8)}-${randomHex(4)}-${randomHex(4)}-${randomHex(4)}-${randomHex(12)}"
@@ -122,10 +146,26 @@ object MovieBox {
     }
 
     private fun sign(method: String, url: String, body: String?, ts: Long): String {
-        val mac = Mac.getInstance("HmacMD5")
-        mac.init(SecretKeySpec(SECRET, "HmacMD5"))
-        val sig = mac.doFinal(canonical(method, url, body, ts).toByteArray())
+        val canonicalStr = canonical(method, url, body, ts)
+        val sig = hmacMd5Manual(SECRET, canonicalStr.toByteArray(Charsets.UTF_8))
         return "$ts|2|" + Base64.encodeToString(sig, Base64.NO_WRAP)
+    }
+
+    // Manual HMAC-MD5 - works on every Android device (some lack HmacMD5 provider).
+    private fun hmacMd5Manual(key: ByteArray, data: ByteArray): ByteArray {
+        val blockSize = 64
+        val md5 = MessageDigest.getInstance("MD5")
+        val keyBlock = if (key.size > blockSize) md5.digest(key) else key.copyOf(blockSize)
+        val oKeyPad = ByteArray(blockSize) { (keyBlock[it].toInt() xor 0x5c).toByte() }
+        val iKeyPad = ByteArray(blockSize) { (keyBlock[it].toInt() xor 0x36).toByte() }
+        md5.reset()
+        md5.update(iKeyPad)
+        md5.update(data)
+        val inner = md5.digest()
+        md5.reset()
+        md5.update(oKeyPad)
+        md5.update(inner)
+        return md5.digest()
     }
 
     // ---------- transport ----------
@@ -153,31 +193,54 @@ object MovieBox {
                 }
                 .build()
             try {
-                client.newCall(req).execute().use { r ->
-                    if (!r.isSuccessful) return@use
+                (if (i == 0) client else trustAllClient).newCall(req).execute().use { r ->
+                    if (!r.isSuccessful) {
+                        setError("HTTP ${r.code} from ${HOSTS[idx]}")
+                        return@use
+                    }
                     val text = r.body?.string()
-                    if (text.isNullOrBlank()) return@use
-                    val json = runCatching { JSONObject(text) }.getOrNull() ?: return@use
-                    // MovieBox returns { code: <n>, ... } where 0/200 = success.
-                    // Anything else is an error — try the next host.
+                    if (text.isNullOrBlank()) {
+                        setError("empty body from ${HOSTS[idx]}")
+                        return@use
+                    }
+                    val json = runCatching { JSONObject(text) }.getOrNull()
+                    if (json == null) {
+                        setError("bad JSON from ${HOSTS[idx]}: ${text.take(100)}")
+                        return@use
+                    }
                     if (json.has("code")) {
                         val code = json.optInt("code", -1)
-                        if (code != 0 && code != 200) return@use
+                        if (code != 0 && code != 200) {
+                            setError("code=$code msg=${json.optString("message").take(60)}")
+                            return@use
+                        }
                     }
+                    setError(null)
                     activeHost = idx
                     return json
                 }
-            } catch (_: Exception) { /* try next host */ }
+            } catch (e: Exception) {
+                setError("${e.javaClass.simpleName}: ${e.message?.take(80)}")
+            }
         }
         return null
     }
 
     private fun ensureToken(): String? {
         token?.let { return it }
-        val d = rawRequest("POST", "/wefeed-mobile-bff/user-api/visitor-login", "{}", null) ?: return null
+        val d = rawRequest("POST", "/wefeed-mobile-bff/user-api/visitor-login", "{}", null)
+        if (d == null) {
+            if (lastError == null) setError("login failed - all hosts down")
+            return null
+        }
         val root = d.optJSONObject("data") ?: d
-        val t = root.optString("token").takeIf { it.isNotBlank() } ?: return null
+        val t = root.optString("token").takeIf { it.isNotBlank() }
+        if (t == null) {
+            setError("login response missing token")
+            return null
+        }
         token = t
+        setError(null)
         return t
     }
 

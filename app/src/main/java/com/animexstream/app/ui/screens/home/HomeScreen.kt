@@ -169,11 +169,18 @@ fun HomeScreen(
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         } else if (filtered.isEmpty() && mbRails.isEmpty()) {
-            // Nothing loaded — show a retry prompt instead of empty headers.
-            Box(Modifier.fillMaxWidth().height(280.dp), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("No content loaded", color = TextSecondary, fontSize = 14.sp)
-                    Spacer(Modifier.height(12.dp))
+            val err = MovieBox.getLastError()
+            Box(Modifier.fillMaxWidth().height(320.dp), contentAlignment = Alignment.Center) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                ) {
+                    Text("No content loaded", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    if (err != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(err, color = TextSecondary, fontSize = 11.sp)
+                    }
+                    Spacer(Modifier.height(16.dp))
                     PurplePillButton("Retry", onClick = { retryTick++ })
                 }
             }
