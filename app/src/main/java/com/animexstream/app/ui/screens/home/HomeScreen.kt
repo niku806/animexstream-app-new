@@ -35,6 +35,7 @@ import com.animexstream.app.data.UserPrefs
 import com.animexstream.app.ui.components.*
 import com.animexstream.app.ui.theme.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
 private val mainCategories = listOf(
@@ -69,21 +70,23 @@ fun HomeScreen(
         loading = true
         mbRails = emptyList()
         allAnime = emptyList()
-        if (isMovieBox) {
-            val rails = runCatching { MovieBox.homeRails() }.getOrDefault(emptyList())
-            mbRails = rails
-            allAnime = rails.flatMap { it.second }.distinctBy { it.id }
-            // All mirrors down / API error -> sweep keywords so home is never blank.
-            if (allAnime.isEmpty()) {
-                val fb = LinkedHashMap<String, Anime>()
-                for (kw in listOf("movie", "series", "anime", "hindi", "action", "comedy", "drama")) {
-                    runCatching { MovieBox.search(kw) }.getOrDefault(emptyList())
-                        .forEach { fb.putIfAbsent(it.id, it) }
+        // Hard cap so the spinner never hangs forever even if all mirrors stall.
+        withTimeoutOrNull(20_000L) {
+            if (isMovieBox) {
+                val rails = runCatching { MovieBox.homeRails() }.getOrDefault(emptyList())
+                mbRails = rails
+                allAnime = rails.flatMap { it.second }.distinctBy { it.id }
+                if (allAnime.isEmpty()) {
+                    val fb = LinkedHashMap<String, Anime>()
+                    for (kw in listOf("movie", "series", "anime", "hindi", "action")) {
+                        runCatching { MovieBox.search(kw) }.getOrDefault(emptyList())
+                            .forEach { fb.putIfAbsent(it.id, it) }
+                    }
+                    allAnime = fb.values.toList()
                 }
-                allAnime = fb.values.toList()
+            } else {
+                allAnime = runCatching { ContentRepository.loadIndex() }.getOrDefault(emptyList())
             }
-        } else {
-            allAnime = runCatching { ContentRepository.loadIndex() }.getOrDefault(emptyList())
         }
         continueItems = UserPrefs.continueList()
         loading = false

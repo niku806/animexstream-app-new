@@ -51,8 +51,10 @@ object MovieBox {
     private val jsonType = "application/json; charset=utf-8".toMediaType()
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(25, TimeUnit.SECONDS)
+        .connectTimeout(6, TimeUnit.SECONDS)
+        .readTimeout(12, TimeUnit.SECONDS)
+        .callTimeout(15, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     // ---------- device identity (stable per install) ----------
@@ -129,7 +131,8 @@ object MovieBox {
     // ---------- transport ----------
     private fun rawRequest(method: String, path: String, body: String?, auth: String?): JSONObject? {
         val start = activeHost
-        for (i in HOSTS.indices) {
+        val maxTries = minOf(3, HOSTS.size)
+        for (i in 0 until maxTries) {
             val idx = (start + i) % HOSTS.size
             val url = HOSTS[idx] + path
             val ts = System.currentTimeMillis()
@@ -396,6 +399,11 @@ object MovieBox {
 
     /** Every home rail title paired with its subjects (real MovieBox rows). */
     suspend fun homeRailsFull(): List<Pair<String, List<Anime>>> = homeRails()
+
+    /** Drop the cached visitor token (forces a fresh login on the next call). */
+    fun clearCache() {
+        token = null
+    }
 
     // ---------- helpers ----------
     private fun coverUrl(s: JSONObject): String =

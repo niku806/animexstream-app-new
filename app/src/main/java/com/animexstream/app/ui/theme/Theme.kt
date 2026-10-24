@@ -9,11 +9,11 @@ import androidx.compose.ui.graphics.Color
 import com.animexstream.app.data.Provider
 
 /** The provider currently selected, readable anywhere in the tree. */
-val LocalSelectedProvider = compositionLocalOf { Provider.ANIMEXSTREAM }
+val LocalSelectedProvider = compositionLocalOf { Provider.MOVIEBOX }
 
 /** The accent colour of the currently-selected provider. */
-val LocalProviderAccent = compositionLocalOf { Color(Provider.ANIMEXSTREAM.accent) }
-val LocalProviderAccentSoft = compositionLocalOf { Color(Provider.ANIMEXSTREAM.accentSoft) }
+val LocalProviderAccent = compositionLocalOf { Color(Provider.MOVIEBOX.accent) }
+val LocalProviderAccentSoft = compositionLocalOf { Color(Provider.MOVIEBOX.accentSoft) }
 
 /**
  * Zangetsu-styled dark theme (deep near-black backgrounds) whose primary and
