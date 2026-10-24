@@ -196,24 +196,6 @@ fun PlayerScreen(
             val item = MediaItem.fromUri(playUrl)
             // Attach subtitle tracks (SRT/VTT) from the episode.
             val subs = currentEp?.subtitles ?: emptyList()
-            if (subs.isNotEmpty()) {
-                val builder = item.buildUpon()
-                subs.forEachIndexed { idx, sub ->
-                    val mime = if (sub.url.contains(".vtt", true)) MimeTypes.TEXT_VTT else MimeTypes.APPLICATION_SUBRIP
-                    builder.setSubtitleConfigurations(
-                        (0..idx).map { k ->
-                            val s = subs[k]
-                            val m = if (s.url.contains(".vtt", true)) MimeTypes.TEXT_VTT else MimeTypes.APPLICATION_SUBRIP
-                            MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(s.url))
-                                .setMimeType(m)
-                                .setLanguage(s.language.ifBlank { "und" })
-                                .setLabel(s.label)
-                                .setSelectionFlags(if (k == 0) androidx.media3.common.C.SELECTION_FLAG_DEFAULT else 0)
-                                .build()
-                        }
-                    )
-                }
-            }
             val builtItem = item.buildUpon()
                 .setSubtitleConfigurations(
                     subs.mapIndexed { k, sub ->

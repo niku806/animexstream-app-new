@@ -29,6 +29,7 @@ import coil.compose.AsyncImage
 import com.animexstream.app.data.Anime
 import com.animexstream.app.data.ContentRepository
 import com.animexstream.app.data.MovieBox
+import com.animexstream.app.data.Provider
 import com.animexstream.app.data.ProviderPrefs
 import com.animexstream.app.data.UserPrefs
 import com.animexstream.app.ui.components.*
