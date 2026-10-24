@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
@@ -187,12 +188,49 @@ fun PlayerScreen(
             val httpDs = DefaultHttpDataSource.Factory()
                 .setUserAgent("Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36")
                 .setAllowCrossProtocolRedirects(true)
+            // Apply per-source headers (Referer/Cookie) that MovieBox streams need.
+            val srcHeaders = activeVariant?.headers ?: emptyMap()
+            if (srcHeaders.isNotEmpty()) httpDs.setDefaultRequestProperties(srcHeaders)
             val dataSourceFactory = DefaultDataSource.Factory(context, httpDs)
 
             val item = MediaItem.fromUri(playUrl)
+            // Attach subtitle tracks (SRT/VTT) from the episode.
+            val subs = currentEp?.subtitles ?: emptyList()
+            if (subs.isNotEmpty()) {
+                val builder = item.buildUpon()
+                subs.forEachIndexed { idx, sub ->
+                    val mime = if (sub.url.contains(".vtt", true)) MimeTypes.TEXT_VTT else MimeTypes.APPLICATION_SUBRIP
+                    builder.setSubtitleConfigurations(
+                        (0..idx).map { k ->
+                            val s = subs[k]
+                            val m = if (s.url.contains(".vtt", true)) MimeTypes.TEXT_VTT else MimeTypes.APPLICATION_SUBRIP
+                            MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(s.url))
+                                .setMimeType(m)
+                                .setLanguage(s.language.ifBlank { "und" })
+                                .setLabel(s.label)
+                                .setSelectionFlags(if (k == 0) androidx.media3.common.C.SELECTION_FLAG_DEFAULT else 0)
+                                .build()
+                        }
+                    )
+                }
+            }
+            val builtItem = item.buildUpon()
+                .setSubtitleConfigurations(
+                    subs.mapIndexed { k, sub ->
+                        val m = if (sub.url.contains(".vtt", true)) MimeTypes.TEXT_VTT else MimeTypes.APPLICATION_SUBRIP
+                        MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(sub.url))
+                            .setMimeType(m)
+                            .setLanguage(sub.language.ifBlank { "und" })
+                            .setLabel(sub.label)
+                            .setSelectionFlags(if (k == 0) androidx.media3.common.C.SELECTION_FLAG_DEFAULT else 0)
+                            .build()
+                    }
+                )
+                .build()
+
             val source = when {
-                playUrl.contains(".m3u8", true) -> HlsMediaSource.Factory(httpDs).createMediaSource(item)
-                else -> ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(item)
+                playUrl.contains(".m3u8", true) -> HlsMediaSource.Factory(httpDs).createMediaSource(builtItem)
+                else -> ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(builtItem)
             }
 
             if (localVideoPath != null && localAudioPath != null) {

@@ -43,6 +43,16 @@ data class Episode(
     val isLocked: Boolean = false,
     // animedekho.tv episode page URL — when set, its real servers are resolved.
     val pageUrl: String = "",
+    // Subtitle tracks (srt/vtt) for this episode.
+    val subtitles: List<SubtitleTrack> = emptyList(),
+)
+
+// ---------- Subtitles ----------
+data class SubtitleTrack(
+    val label: String,
+    val url: String,
+    val language: String = "",
+    val headers: Map<String, String> = emptyMap(),
 )
 
 // ---------- Anime detail ----------

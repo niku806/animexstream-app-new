@@ -25,7 +25,8 @@ enum class Provider(
 ) {
     ANIMEXSTREAM("animexstream", "AnimeXstream", 0xFF9D5CFF, 0xFFA78BFA, "Original library"),
     ANIMESTREAM("animestream", "AnimeStream", 0xFFCAF979, 0xFFE4FFA3, "Trending now"),
-    ZANGETSU("zangetsu", "Zangetsu", 0xFFFF4D57, 0xFFFF8A90, "Top rated");
+    ZANGETSU("zangetsu", "Zangetsu", 0xFFFF4D57, 0xFFFF8A90, "Top rated"),
+    MOVIEBOX("moviebox", "MovieBox", 0xFFFF7A00, 0xFFFFB067, "Movies · Series · Anime");
 
     companion object {
         fun fromId(id: String?): Provider =
@@ -326,12 +327,37 @@ object AnimeXstreamProvider : ContentProvider {
         ServerResolver.resolveAll(episode.servers, cacheKey = "ax:${episode.number}")
 }
 
+/** MovieBox — the large Hindi/English catalogue with real mp4 streams. */
+object MovieBoxProvider : ContentProvider {
+    override val provider = Provider.MOVIEBOX
+    override suspend fun loadIndex(force: Boolean): List<Anime> {
+        // Pull the home rails' titles as the browse index, de-duplicated.
+        val seen = LinkedHashMap<String, Anime>()
+        runCatching { MovieBox.homeRails() }.getOrDefault(emptyList()).forEach { (_, list) ->
+            list.forEach { seen.putIfAbsent(it.id, it) }
+        }
+        return seen.values.toList()
+    }
+    override suspend fun loadDetail(slug: String) = MovieBox.detail(slug)
+    override suspend fun search(query: String) = MovieBox.search(query)
+    override suspend fun resolveServers(episode: Episode): List<ResolvedServer> {
+        if (episode.pageUrl.startsWith("moviebox:")) {
+            val r = runCatching { MovieBox.streams(episode.pageUrl) }.getOrDefault(emptyList())
+            if (r.isNotEmpty()) return r
+        }
+        return ServerResolver.resolveAll(episode.servers, cacheKey = "mb:${episode.number}")
+    }
+    /** Category browse: anime / movies / series. */
+    suspend fun browse(kind: String, page: Int = 1) = MovieBox.browseCategory(kind, page)
+}
+
 /** Routes every call to the currently-selected provider. */
 object ContentRepository {
     fun current(): ContentProvider = when (ProviderPrefs.selected()) {
         Provider.ANIMEXSTREAM -> AnimeXstreamProvider
         Provider.ANIMESTREAM -> AnimestreamProvider
         Provider.ZANGETSU -> ZangetsuProvider
+        Provider.MOVIEBOX -> MovieBoxProvider
     }
 
     /** Drops every provider's in-memory caches so a switch never leaks old data. */
@@ -341,6 +367,9 @@ object ContentRepository {
         AnimestreamProvider.clearCache()
         ZangetsuProvider.clearCache()
     }
+
+    /** Category browse for the MovieBox provider. */
+    suspend fun browseMovieBox(kind: String, page: Int = 1) = MovieBox.browseCategory(kind, page)
 
     suspend fun loadIndex(force: Boolean = false) = current().loadIndex(force)
     suspend fun loadDetail(slug: String) = current().loadDetail(slug)

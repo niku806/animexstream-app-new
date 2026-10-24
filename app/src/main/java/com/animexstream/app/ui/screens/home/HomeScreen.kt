@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.animexstream.app.data.Anime
 import com.animexstream.app.data.ContentRepository
+import com.animexstream.app.data.MovieBox
 import com.animexstream.app.data.ProviderPrefs
 import com.animexstream.app.data.UserPrefs
 import com.animexstream.app.ui.components.*
@@ -53,7 +54,9 @@ fun HomeScreen(
     onOpenAnimeTab: () -> Unit = {},
     onCategoryClick: (String) -> Unit = {}
 ) {
+    val isMovieBox = ProviderPrefs.selected() == Provider.MOVIEBOX
     var allAnime by remember { mutableStateOf<List<Anime>>(emptyList()) }
+    var mbRails by remember { mutableStateOf<List<Pair<String, List<Anime>>>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var selectedGenre by remember { mutableStateOf("All") }
     var continueItems by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
@@ -61,7 +64,13 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         loading = true
-        allAnime = ContentRepository.loadIndex()
+        if (isMovieBox) {
+            val rails = runCatching { MovieBox.homeRails() }.getOrDefault(emptyList())
+            mbRails = rails
+            allAnime = rails.flatMap { it.second }.distinctBy { it.id }
+        } else {
+            allAnime = ContentRepository.loadIndex()
+        }
         continueItems = UserPrefs.continueList()
         loading = false
     }
@@ -120,6 +129,22 @@ fun HomeScreen(
                 }
             }
             Spacer(Modifier.height(22.dp))
+        }
+
+        if (isMovieBox && !loading) {
+            // Real MovieBox home rows
+            mbRails.forEach { (title, items) ->
+                if (items.isNotEmpty()) {
+                    SectionHeader(title, Modifier.padding(horizontal = 16.dp))
+                    Spacer(Modifier.height(10.dp))
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(items.size) { i ->
+                            AnimePosterCard(items[i], width = 120.dp, onClick = { onAnimeClick(items[i].id) })
+                        }
+                    }
+                    Spacer(Modifier.height(22.dp))
+                }
+            }
         }
 
         if (loading) {
