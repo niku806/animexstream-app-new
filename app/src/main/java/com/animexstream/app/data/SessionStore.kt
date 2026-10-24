@@ -59,7 +59,8 @@ object SessionStore {
         }
     } catch (_: Exception) { null }
 
-    private fun writeViaMediaStore(ctx: Context, text: String): Boolean = try {
+    private fun writeViaMediaStore(ctx: Context, text: String): Boolean {
+        return try {
         val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         var uri = mediaStoreUri(ctx)
         if (uri == null) {
@@ -73,12 +74,15 @@ object SessionStore {
         if (uri == null) return false
         ctx.contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray()) }
         true
-    } catch (_: Exception) { false }
+        } catch (_: Exception) { false }
+    }
 
-    private fun readViaMediaStore(ctx: Context): String? = try {
-        val uri = mediaStoreUri(ctx) ?: return null
-        ctx.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
-    } catch (_: Exception) { null }
+    private fun readViaMediaStore(ctx: Context): String? {
+        return try {
+            val uri = mediaStoreUri(ctx) ?: return null
+            ctx.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+        } catch (_: Exception) { null }
+    }
 
     // ---------- public API ----------
     fun backup() {
