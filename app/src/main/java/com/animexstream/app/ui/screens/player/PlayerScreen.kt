@@ -37,6 +37,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
@@ -199,12 +200,17 @@ fun PlayerScreen(
 
         isLoading = true
         try {
-            val httpDs = DefaultHttpDataSource.Factory()
-                .setUserAgent("Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36")
-                .setAllowCrossProtocolRedirects(true)
-            // Apply per-source headers (Referer/Cookie) that MovieBox streams need.
+            // OkHttp-backed datasource: replays Referer/Cookie on EVERY segment
+            // request (not just the manifest), which CloudFront-signed MovieBox
+            // streams require.
             val srcHeaders = activeVariant?.headers ?: emptyMap()
-            if (srcHeaders.isNotEmpty()) httpDs.setDefaultRequestProperties(srcHeaders)
+            val okHttpClient = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val httpDs = OkHttpDataSource.Factory(okHttpClient)
+                .setDefaultRequestProperties(srcHeaders)
+                .setUserAgent(srcHeaders["User-Agent"] ?: "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36")
             val dataSourceFactory = DefaultDataSource.Factory(context, httpDs)
 
             val item = MediaItem.fromUri(playUrl)

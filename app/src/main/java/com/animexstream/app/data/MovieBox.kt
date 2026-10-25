@@ -64,7 +64,7 @@ object MovieBox {
         .build()
 
     // ---------- device identity (stable per install) ----------
-    private val versionCode = 50020120
+    private val versionCode = 50020133
     private val deviceId = randomHex(32)
     private val gaid = randomUuid()
     private val userAgent =
@@ -72,7 +72,7 @@ object MovieBox {
             "Build/TQ2A.230405.003; Cronet/135.0.7012.3)"
     private val clientInfo = JSONObject().apply {
         put("package_name", "com.community.oneroom")
-        put("version_name", "4.0.01.0813.03")
+        put("version_name", "4.0.03.0930.04")
         put("version_code", versionCode)
         put("os", "android")
         put("os_version", "13")
@@ -360,8 +360,14 @@ object MovieBox {
         val variants = ArrayList<QualityStream>()
         for (i in 0 until streams.length()) {
             val s = streams.optJSONObject(i) ?: continue
-            val url = s.optString("url")
+            var url = s.optString("url")
             if (!url.startsWith("http")) continue
+            // MovieBox /hls/ URLs 404 on every player; recover a /dash/ URL
+            // from the signed cookie, or skip the stream entirely.
+            if (url.contains("/hls/", ignoreCase = true)) {
+                val dash = extractDashFromCookie(s.optString("signCookie")) ?: continue
+                url = dash
+            }
             val signCookie = s.optString("signCookie")
             val headers = LinkedHashMap<String, String>()
             headers["Referer"] = STREAM_REFERER
@@ -471,5 +477,17 @@ object MovieBox {
             synopsis = s.optString("description"),
             rating = s.optString("imdbRatingValue").toDoubleOrNull()?.div(10.0) ?: 0.0,
         )
+    }
+
+
+    /** Decode urlprefix from a CloudFront sign cookie and return a /dash/ URL if present. */
+    private fun extractDashFromCookie(signCookie: String): String? {
+        if (signCookie.isBlank()) return null
+        val match = Regex("""urlprefix=([A-Za-z0-9_\-]+)""").find(signCookie) ?: return null
+        return try {
+            val padded = match.groupValues[1] + "=".repeat((4 - match.groupValues[1].length % 4) % 4)
+            val decoded = String(Base64.decode(padded, Base64.URL_SAFE), Charsets.UTF_8)
+            if (decoded.contains("/dash/")) decoded else null
+        } catch (_: Exception) { null }
     }
 }
