@@ -39,6 +39,7 @@ import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
@@ -232,6 +233,7 @@ fun PlayerScreen(
 
             val source = when {
                 playUrl.contains(".m3u8", true) -> HlsMediaSource.Factory(httpDs).createMediaSource(builtItem)
+                playUrl.contains(".mpd", true) -> DashMediaSource.Factory(httpDs).createMediaSource(builtItem)
                 else -> ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(builtItem)
             }
 
@@ -492,7 +494,9 @@ fun PlayerScreen(
     if (showDownloadSheet) {
         var pickServer by remember { mutableIntStateOf(0) }
         var pickQuality by remember { mutableIntStateOf(0) }
-        val pickVariants = resolvedServers.getOrNull(pickServer)?.variants ?: emptyList()
+        // DASH manifests cannot be saved as a single file - only offer direct files.
+        val pickVariants = (resolvedServers.getOrNull(pickServer)?.variants ?: emptyList())
+            .filter { !it.isDash }
         GlassBottomSheet(onDismiss = { showDownloadSheet = false }) {
             Text("Download", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))
@@ -506,7 +510,11 @@ fun PlayerScreen(
                     Text(rs.name, color = TextPrimary, fontSize = 13.sp)
                 }
             }
-            if (pickVariants.isNotEmpty()) {
+            if (pickVariants.isEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text("This stream is adaptive (DASH) - direct download is not available.",
+                    color = TextSecondary, fontSize = 11.sp)
+            } else {
                 Spacer(Modifier.height(10.dp))
                 Text("Quality", color = TextSecondary, fontSize = 12.sp)
                 Spacer(Modifier.height(6.dp))
@@ -523,7 +531,7 @@ fun PlayerScreen(
             Button(
                 onClick = {
                     val rs = resolvedServers.getOrNull(pickServer) ?: return@Button
-                    val q = rs.variants.getOrNull(pickQuality) ?: return@Button
+                    val q = pickVariants.getOrNull(pickQuality) ?: return@Button
                     if (d != null) {
                         DownloadManager.enqueue(context, rs, q, animeId, d.title, episodeNumber, d.image)
                         showDownloadSheet = false

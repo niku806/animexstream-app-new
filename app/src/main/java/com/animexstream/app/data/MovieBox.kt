@@ -64,7 +64,7 @@ object MovieBox {
         .build()
 
     // ---------- device identity (stable per install) ----------
-    private val versionCode = 50020133
+    private val versionCode = 50020120
     private val deviceId = randomHex(32)
     private val gaid = randomUuid()
     private val userAgent =
@@ -72,7 +72,7 @@ object MovieBox {
             "Build/TQ2A.230405.003; Cronet/135.0.7012.3)"
     private val clientInfo = JSONObject().apply {
         put("package_name", "com.community.oneroom")
-        put("version_name", "4.0.03.0930.04")
+        put("version_name", "4.0.01.0813.03")
         put("version_code", versionCode)
         put("os", "android")
         put("os_version", "13")
@@ -360,34 +360,51 @@ object MovieBox {
         val variants = ArrayList<QualityStream>()
         for (i in 0 until streams.length()) {
             val s = streams.optJSONObject(i) ?: continue
-            var url = s.optString("url")
-            if (!url.startsWith("http")) continue
-            // MovieBox /hls/ URLs 404 on every player; recover a /dash/ URL
-            // from the signed cookie, or skip the stream entirely.
-            if (url.contains("/hls/", ignoreCase = true)) {
-                val dash = extractDashFromCookie(s.optString("signCookie")) ?: continue
-                url = dash
-            }
+            val rawUrl = s.optString("url")
             val signCookie = s.optString("signCookie")
-            val headers = LinkedHashMap<String, String>()
-            headers["Referer"] = STREAM_REFERER
-            headers["User-Agent"] = userAgent
-            headers["x-forwarded-for"] = spoofIp()
-            if (signCookie.isNotBlank()) {
-                headers["Cookie"] = signCookie.trimEnd(';')
-                    .split(';').map { it.trim() }.filter { it.isNotEmpty() }.joinToString("; ")
+
+            // Resolve the real stream: prefer a /dash/ manifest recovered from
+            // the CloudFront sign cookie; otherwise a direct non-notice mp4.
+            val dash = resolveDashManifest(signCookie)
+            val playUrl: String
+            val isDash: Boolean
+            if (dash != null) {
+                playUrl = dash
+                isDash = true
+            } else if (rawUrl.startsWith("http") && !isNoticeUrl(rawUrl)) {
+                playUrl = rawUrl
+                isDash = rawUrl.contains(".mpd", true)
+            } else {
+                continue
             }
-            val resolutions = s.optString("resolutions").ifBlank { root.optString("displayResolutions", "1080") }
-                .split(',').mapNotNull { it.trim().toIntOrNull() }.sortedDescending().ifEmpty { listOf(1080) }
+
+            val headers = LinkedHashMap<String, String>()
+            headers["User-Agent"] = userAgent
+            // DASH/HLS need Referer + Cookie; direct mp4 only needs a UA.
+            if (isDash || playUrl.contains(".m3u8", true)) {
+                headers["Referer"] = STREAM_REFERER
+                if (signCookie.isNotBlank()) {
+                    headers["Cookie"] = signCookie.trimEnd(';')
+                        .split(';').map { it.trim() }.filter { it.isNotEmpty() }
+                        .joinToString("; ")
+                }
+            }
+
+            val resolutions = s.optString("resolutions")
+                .ifBlank { root.optString("displayResolutions", "1080") }
+                .split(',').mapNotNull { it.trim().toIntOrNull() }
+                .sortedDescending().ifEmpty { listOf(1080) }
             val codec = s.optString("codecName").ifBlank { s.optString("format", "MP4") }
+
             for (res in resolutions) {
                 variants.add(
                     QualityStream(
                         quality = "${res}p $codec",
-                        url = url,
-                        directDownloadUrl = url,
+                        url = playUrl,
+                        directDownloadUrl = if (isDash) null else playUrl,
                         audioUrl = null,
-                        isHls = url.contains(".m3u8", true),
+                        isHls = playUrl.contains(".m3u8", true),
+                        isDash = isDash,
                         headers = headers,
                     )
                 )
@@ -480,14 +497,71 @@ object MovieBox {
     }
 
 
-    /** Decode urlprefix from a CloudFront sign cookie and return a /dash/ URL if present. */
-    private fun extractDashFromCookie(signCookie: String): String? {
-        if (signCookie.isBlank()) return null
-        val match = Regex("""urlprefix=([A-Za-z0-9_\-]+)""").find(signCookie) ?: return null
+
+
+    // ---------- DASH resolution ----------
+
+    /** Build a `/dash/<id>/index.mpd` URL from a stream root (or null). */
+    private fun toDashMpd(urlStr: String): String? {
+        val base = urlStr.trimEnd('*').trimEnd('/')
+        if (!base.startsWith("http://") && !base.startsWith("https://")) return null
+        if (!base.contains("/dash/")) return null
+        return if (base.endsWith(".mpd", true)) base else "$base/index.mpd"
+    }
+
+    /** Base64-decode a CloudFront token (URL-safe or standard, unpadded). */
+    private fun decodeB64Padded(raw: String): String? {
         return try {
-            val padded = match.groupValues[1] + "=".repeat((4 - match.groupValues[1].length % 4) % 4)
-            val decoded = String(Base64.decode(padded, Base64.URL_SAFE), Charsets.UTF_8)
-            if (decoded.contains("/dash/")) decoded else null
+            val norm = raw.map { c ->
+                when (c) { '-' -> '+'; '_' -> '/'; '~' -> '/'; else -> c }
+            }.joinToString("")
+            val pad = (4 - norm.length % 4) % 4
+            String(Base64.decode(norm + "=".repeat(pad), Base64.DEFAULT), Charsets.UTF_8)
         } catch (_: Exception) { null }
+    }
+
+    /**
+     * Recover a /dash/ manifest URL from a CloudFront sign cookie. Handles both
+     * Edge-Cache-Cookie urlprefix tokens and CloudFront-Policy JSON tokens.
+     */
+    private fun resolveDashManifest(signCookie: String): String? {
+        if (signCookie.isBlank()) return null
+        for (part in signCookie.split(';')) {
+            val t = part.trim()
+            val up = t.indexOf("urlprefix=")
+            if (up >= 0) {
+                val after = t.substring(up + "urlprefix=".length)
+                val b64 = after.split(':').first().trim()
+                val decoded = decodeB64Padded(b64)
+                if (decoded != null) {
+                    toDashMpd(decoded)?.let { return it }
+                }
+            }
+            if (t.startsWith("CloudFront-Policy=")) {
+                val pol = t.removePrefix("CloudFront-Policy=").trim()
+                val decoded = decodeB64Padded(pol) ?: continue
+                val resource = runCatching {
+                    JSONObject(decoded)
+                        .getJSONArray("Statement")
+                        .getJSONObject(0)
+                        .getString("Resource")
+                }.getOrNull()
+                if (resource != null) {
+                    toDashMpd(resource)?.let { return it }
+                }
+            }
+        }
+        return null
+    }
+
+    /** True when a URL is one of MovieBox's tiny "upgrade the app" notice clips. */
+    private fun isNoticeUrl(url: String): Boolean {
+        val l = url.lowercase()
+        if (l.contains("/notice.mp4")) return true
+        if (l.contains("1c7de0bd3393702d9191801f15f88f8d")) return true
+        if (l.contains("9a0461bc39da389663bf3dbb17091d3f")) return true
+        if (l.contains("b164fbfb4347792950bdfbfb563d39d9")) return true
+        if (l.contains("macdn.aoneroom.com") && l.contains("/other/")) return true
+        return false
     }
 }

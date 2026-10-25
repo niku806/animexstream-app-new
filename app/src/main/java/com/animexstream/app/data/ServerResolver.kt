@@ -45,6 +45,7 @@ data class QualityStream(
     val directDownloadUrl: String?,
     val audioUrl: String?,
     val isHls: Boolean,
+    val isDash: Boolean = false,
     // Extra request headers the source needs (Referer/Cookie/User-Agent).
     val headers: Map<String, String> = emptyMap(),
 )
