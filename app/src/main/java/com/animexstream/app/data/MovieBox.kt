@@ -48,7 +48,8 @@ object MovieBox {
         0xD1.toByte(), 0x01, 0x25, 0x9B.toByte(), 0xA5.toByte(), 0x21, 0x02, 0x2C,
         0x57, 0xAE.toByte(), 0x05, 0x66, 0xBD.toByte(), 0x8E.toByte(),
     )
-    private val jsonType = "application/json; charset=utf-8".toMediaType()
+    // MUST match the Content-Type used in [canonical], or the signature is rejected.
+    private val jsonType = "application/json".toMediaType()
 
     // Plain OkHttp: system proxy and normal TLS validation are left untouched.
     private val client = OkHttpClient.Builder()
