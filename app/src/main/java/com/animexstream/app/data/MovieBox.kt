@@ -96,7 +96,8 @@ object MovieBox {
 
     // ---------- signing ----------
     private fun md5Hex(bytes: ByteArray): String =
-        MessageDigest.getInstance("MD5").digest(bytes).joinToString("") { "%02x".format(it) }
+        MessageDigest.getInstance("MD5").digest(bytes)
+            .joinToString("") { "%02x".format(it.toInt() and 0xFF) }
 
     private fun xClientToken(ts: Long): String =
         "$ts,${md5Hex(ts.toString().reversed().toByteArray())}"
