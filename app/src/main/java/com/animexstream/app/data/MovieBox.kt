@@ -3,6 +3,7 @@ package com.animexstream.app.data
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -37,7 +38,6 @@ object MovieBox {
         "https://api4.aoneroom.com",
         "https://api4sg.aoneroom.com",
         "https://api3.aoneroom.com",
-        "https://api6sg.aoneroom.com",
         "https://api.inmoviebox.com",
     )
     @Volatile private var activeHost = 0
@@ -138,58 +138,68 @@ object MovieBox {
     // ---------- transport ----------
     private fun rawRequest(method: String, path: String, body: String?, auth: String?): JSONObject? {
         val start = activeHost
-        val maxTries = minOf(3, HOSTS.size)
-        for (i in 0 until maxTries) {
+        var lastMsg: String? = null
+        for (i in HOSTS.indices) {
             val idx = (start + i) % HOSTS.size
-            val url = HOSTS[idx] + path
+            val base = HOSTS[idx]
+            val rawUrl = base + path
+            val httpUrl = rawUrl.toHttpUrlOrNull()
+            if (httpUrl == null) {
+                lastMsg = "bad url: $rawUrl"
+                continue
+            }
+            // Sign the EXACT string OkHttp will send (handles normalization).
+            val signedUrl = httpUrl.toString()
             val ts = System.currentTimeMillis()
-            val req = Request.Builder().url(url)
+            val request = Request.Builder()
+                .url(httpUrl)
                 .header("User-Agent", userAgent)
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json")
                 .header("Connection", "keep-alive")
                 .header("x-client-token", xClientToken(ts))
-                .header("x-tr-signature", sign(method, url, body, ts))
+                .header("x-tr-signature", sign(method, signedUrl, body, ts))
                 .header("x-client-info", clientInfo)
                 .header("x-client-status", "0")
                 .header("x-forwarded-for", spoofIp())
                 .apply { if (auth != null) header("Authorization", "Bearer $auth") }
                 .apply {
-                    if (method == "POST") post((body ?: "{}").toRequestBody(jsonType))
-                    else get()
+                    if (method == "POST") post((body ?: "{}").toRequestBody(jsonType)) else get()
                 }
                 .build()
             try {
-                client.newCall(req).execute().use { r ->
-                    if (!r.isSuccessful) {
-                        setError("HTTP ${r.code} from ${HOSTS[idx]}")
+                client.newCall(request).execute().use { resp ->
+                    if (!resp.isSuccessful) {
+                        lastMsg = "[B21] HTTP ${resp.code} @ ${base.removePrefix("https://")} ${path.take(50)}"
                         return@use
                     }
-                    val text = r.body?.string()
+                    val text = resp.body?.string()
                     if (text.isNullOrBlank()) {
-                        setError("empty body from ${HOSTS[idx]}")
+                        lastMsg = "[B21] empty body @ ${base.removePrefix("https://")}"
                         return@use
                     }
                     val json = runCatching { JSONObject(text) }.getOrNull()
                     if (json == null) {
-                        setError("bad JSON from ${HOSTS[idx]}: ${text.take(100)}")
+                        lastMsg = "[B21] bad JSON @ ${base.removePrefix("https://")}"
                         return@use
                     }
                     if (json.has("code")) {
                         val code = json.optInt("code", -1)
                         if (code != 0 && code != 200) {
-                            setError("code=$code msg=${json.optString("message").take(60)}")
+                            lastMsg = "[B21] code=$code ${json.optString("message").take(40)}"
                             return@use
                         }
                     }
-                    setError(null)
                     activeHost = idx
+                    lastError = null
                     return json
                 }
             } catch (e: Exception) {
-                setError("${e.javaClass.simpleName}: ${e.message?.take(80)}")
+                lastMsg = "[B21] ${e.javaClass.simpleName} @ ${base.removePrefix("https://")}: ${e.message?.take(50)}"
             }
         }
+        activeHost = 0
+        lastError = lastMsg ?: "all hosts failed"
         return null
     }
 
