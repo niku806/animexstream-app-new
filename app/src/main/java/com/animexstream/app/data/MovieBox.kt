@@ -51,8 +51,12 @@ object MovieBox {
     // MUST match the Content-Type used in [canonical], or the signature is rejected.
     private val jsonType = "application/json".toMediaType()
 
-    // Plain OkHttp: system proxy and normal TLS validation are left untouched.
+    // Force HTTP/1.1 (MovieBox breaks on HTTP/2) + proxyAuthenticator that
+    // returns null so a server-side 407 (MovieBox uses 407 for signature
+    // errors) surfaces as a normal response instead of a ProtocolException.
     private val client = OkHttpClient.Builder()
+        .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
+        .proxyAuthenticator { _, _ -> null }
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .callTimeout(25, TimeUnit.SECONDS)
@@ -148,8 +152,9 @@ object MovieBox {
                 lastMsg = "bad url: $rawUrl"
                 continue
             }
-            // Sign the EXACT string OkHttp will send (handles normalization).
-            val signedUrl = httpUrl.toString()
+            // Sign the raw URL string — OkHttp sends the same bytes for these
+            // paths, and the server compares against the raw form.
+            val signedUrl = rawUrl
             val ts = System.currentTimeMillis()
             val request = Request.Builder()
                 .url(httpUrl)
@@ -170,23 +175,30 @@ object MovieBox {
             try {
                 client.newCall(request).execute().use { resp ->
                     if (!resp.isSuccessful) {
-                        lastMsg = "[B21] HTTP ${resp.code} @ ${base.removePrefix("https://")} ${path.take(50)}"
+                        val bodyText = runCatching { resp.body?.string() }.getOrNull() ?: ""
+                        val kind = when (resp.code) {
+                            407, 406 -> "SIG"
+                            401, 403 -> "AUTH"
+                            404 -> "NF"
+                            else -> "HTTP"
+                        }
+                        lastMsg = "[B22] $kind ${resp.code} @ ${base.removePrefix("https://")} ${bodyText.take(60)}"
                         return@use
                     }
                     val text = resp.body?.string()
                     if (text.isNullOrBlank()) {
-                        lastMsg = "[B21] empty body @ ${base.removePrefix("https://")}"
+                        lastMsg = "[B22] empty body @ ${base.removePrefix("https://")}"
                         return@use
                     }
                     val json = runCatching { JSONObject(text) }.getOrNull()
                     if (json == null) {
-                        lastMsg = "[B21] bad JSON @ ${base.removePrefix("https://")}"
+                        lastMsg = "[B22] bad JSON @ ${base.removePrefix("https://")}"
                         return@use
                     }
                     if (json.has("code")) {
                         val code = json.optInt("code", -1)
                         if (code != 0 && code != 200) {
-                            lastMsg = "[B21] code=$code ${json.optString("message").take(40)}"
+                            lastMsg = "[B22] code=$code ${json.optString("message").take(40)}"
                             return@use
                         }
                     }
@@ -195,7 +207,7 @@ object MovieBox {
                     return json
                 }
             } catch (e: Exception) {
-                lastMsg = "[B21] ${e.javaClass.simpleName} @ ${base.removePrefix("https://")}: ${e.message?.take(50)}"
+                lastMsg = "[B22] ${e.javaClass.simpleName} @ ${base.removePrefix("https://")}: ${e.message?.take(50)}"
             }
         }
         activeHost = 0
