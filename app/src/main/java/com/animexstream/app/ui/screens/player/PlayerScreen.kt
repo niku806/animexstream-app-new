@@ -148,9 +148,23 @@ fun PlayerScreen(
     val playUrl: String? = localVideoPath ?: activeVariant?.url
 
     LaunchedEffect(exoPlayer) {
+        var lastTickMs = System.currentTimeMillis()
         while (true) {
-            exoPlayer?.let { lastPos = it.currentPosition; lastPlay = it.playWhenReady }
-            kotlinx.coroutines.delay(500)
+            exoPlayer?.let {
+                lastPos = it.currentPosition
+                lastPlay = it.playWhenReady
+                if (it.isPlaying) {
+                    val now = System.currentTimeMillis()
+                    val delta = now - lastTickMs
+                    if (delta > 0 && delta < 5000) {
+                        UserPrefs.addWatchSeconds(delta / 1000)
+                    }
+                    lastTickMs = now
+                } else {
+                    lastTickMs = System.currentTimeMillis()
+                }
+            }
+            kotlinx.coroutines.delay(1000)
         }
     }
 
@@ -245,9 +259,12 @@ fun PlayerScreen(
             servers = resolvedServers,
             selectedServerIdx = selectedServerIdx,
             selectedQualityIdx = selectedQualityIdx,
+            speed = speed,
+            onSpeedChange = { speed = it },
             onBack = { isFullscreen = false },
             onServerChange = { idx -> selectedServerIdx = idx; selectedQualityIdx = 0 },
             onQualityChange = { idx -> selectedQualityIdx = idx },
+            onNextEpisode = { onNextEpisode(episodeNumber + 1) },
             onSettingsClick = { showSettings = true }
         )
     } else {
@@ -518,9 +535,9 @@ fun PlayerScreen(
 @Composable
 private fun GlassIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        modifier.size(40.dp).clip(RoundedCornerShape(14.dp))
-            .background(Brush.linearGradient(listOf(Color(0x7AFFFFFF), Color(0x1FFFFFFF))))
-            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(14.dp))
+        modifier.size(40.dp).clip(RoundedCornerShape(20.dp))
+            .background(Color(0x59000000))
+            .border(0.5.dp, Color(0x1AFFFFFF), RoundedCornerShape(20.dp))
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(20.dp)) }
@@ -570,6 +587,15 @@ private fun GlassSettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVect
 }
 
 @Composable
+private fun fmtTime(ms: Long): String {
+    val totalSec = ms / 1000
+    val h = totalSec / 3600
+    val m = (totalSec % 3600) / 60
+    val sec = totalSec % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, sec) else "%d:%02d".format(m, sec)
+}
+
+@Composable
 private fun FullscreenPlayer(
     exoPlayer: ExoPlayer?,
     isLoading: Boolean,
@@ -577,9 +603,12 @@ private fun FullscreenPlayer(
     servers: List<ResolvedServer>,
     selectedServerIdx: Int,
     selectedQualityIdx: Int,
+    speed: Float,
+    onSpeedChange: (Float) -> Unit,
     onBack: () -> Unit,
     onServerChange: (Int) -> Unit,
     onQualityChange: (Int) -> Unit,
+    onNextEpisode: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
     var serverPopup by remember { mutableStateOf(false) }

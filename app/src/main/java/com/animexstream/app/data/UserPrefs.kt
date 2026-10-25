@@ -19,6 +19,7 @@ object UserPrefs {
     private const val K_NAME = "display_name"
     private const val K_LOGGED = "logged_in"
     private const val K_CONTINUE = "continue_watching"
+    private const val K_WATCH_SEC = "watch_seconds"
 
     @Volatile private var prefs: SharedPreferences? = null
 
@@ -90,4 +91,15 @@ object UserPrefs {
         val list = continueList().filter { it.optString("id") != animeId }
         p.edit().putString(K_CONTINUE, JSONArray(list).toString()).apply()
     }
+
+
+    // ---------- Watch time ----------
+    fun addWatchSeconds(seconds: Long) {
+        if (seconds <= 0) return
+        val p = prefs ?: return
+        val cur = p.getLong(K_WATCH_SEC, 0L)
+        p.edit().putLong(K_WATCH_SEC, cur + seconds).apply()
+    }
+
+    fun watchSeconds(): Long = prefs?.getLong(K_WATCH_SEC, 0L) ?: 0L
 }

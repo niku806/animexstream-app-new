@@ -10,7 +10,7 @@ enum class Provider(
     val accentSoft: Long,
     val tagline: String,
 ) {
-    MOVIEBOX("moviebox", "MovieBox", 0xFFFF7A00, 0xFFFFB067, "Movies - Series - Anime");
+    MOVIEBOX("animexstream", "AnimeXstream", 0xFF9D5CFF, 0xFFA78BFA, "Movies - Series - Anime");
 
     companion object {
         fun fromId(id: String?): Provider = MOVIEBOX

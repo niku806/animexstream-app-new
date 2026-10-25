@@ -308,8 +308,7 @@ object MovieBox {
                 if (!seenKeys.add(key)) continue
                 val num = if (ep > 0) ep else 1
                 val name = it.optString("title").ifBlank { if (type == "Movie") title else "Episode $num" }
-                // Fetch subtitle tracks for this episode (best-effort).
-                val subs = runCatching { subtitles("moviebox:$subjectId:$se:$ep") }.getOrDefault(emptyList())
+                // Subtitles are fetched lazily by the player to keep detail fast.
                 eps.add(
                     Episode(
                         number = num,
@@ -318,7 +317,6 @@ object MovieBox {
                         image = poster,
                         description = "",
                         pageUrl = "moviebox:$subjectId:$se:$ep",
-                        subtitles = subs,
                     )
                 )
             }

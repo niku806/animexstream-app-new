@@ -33,6 +33,7 @@ import coil.compose.AsyncImage
 import com.animexstream.app.data.AuthRepository
 import com.animexstream.app.data.CommunityPost
 import com.animexstream.app.data.CommunityRepository
+import com.animexstream.app.data.UserPrefs
 import com.animexstream.app.ui.screens.auth.SITE_ICONS
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import com.animexstream.app.ui.theme.*
@@ -78,6 +79,7 @@ fun ProfileScreen(onLogout: () -> Unit, onOpenSettings: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 Stat(myPosts.size.toString(), "Posts")
                 Stat(myPosts.sumOf { it.likes.size }.toString(), "Likes")
+                Stat(fmtWatch(UserPrefs.watchSeconds()), "Watch time")
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -216,4 +218,12 @@ fun MenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String
         Icon(Icons.Default.KeyboardArrowRight, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
     }
     Spacer(Modifier.height(8.dp))
+}
+
+private fun fmtWatch(sec: Long): String {
+    if (sec < 60) return "${sec}s"
+    if (sec < 3600) return "${sec / 60}m"
+    val h = sec / 3600
+    val m = (sec % 3600) / 60
+    return if (m > 0) "${h}h ${m}m" else "${h}h"
 }

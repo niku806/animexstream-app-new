@@ -19,6 +19,7 @@ data class DownloadTask(
     val quality: String,
     val sourceUrl: String,
     val isHls: Boolean,
+    val headers: Map<String, String> = emptyMap(),
     val videoPath: String? = null,
     val audioPath: String? = null,
     val posterPath: String? = null,
@@ -60,6 +61,7 @@ object DownloadManager {
             id = id, animeId = animeId, animeTitle = animeTitle,
             episodeNum = episodeNum, serverName = server.name, quality = quality.quality,
             sourceUrl = quality.url, isHls = quality.isHls,
+            headers = quality.headers,
         )
         addTask(task)
         scope.launch {
@@ -150,9 +152,10 @@ object DownloadManager {
                 .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                 .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
-            val req = okhttp3.Request.Builder().url(url)
+            val reqBuilder = okhttp3.Request.Builder().url(url)
                 .header("User-Agent", "Mozilla/5.0 (Linux; Android 13)")
-                .build()
+            task.headers.forEach { (k, v) -> reqBuilder.header(k, v) }
+            val req = reqBuilder.build()
             val resp = client.newCall(req).execute()
             if (!resp.isSuccessful) throw Exception("HTTP ${resp.code}")
             val body = resp.body ?: throw Exception("Empty body")
@@ -246,6 +249,7 @@ object DownloadManager {
                 put("serverName", t.serverName)
                 put("quality", t.quality)
                 put("sourceUrl", t.sourceUrl)
+                put("headers", org.json.JSONObject(t.headers as Map<*, *>))
                 put("isHls", t.isHls)
                 put("videoPath", t.videoPath ?: "")
                 put("audioPath", t.audioPath ?: "")
@@ -282,6 +286,13 @@ object DownloadManager {
                     serverName = o.optString("serverName"),
                     quality = o.optString("quality"),
                     sourceUrl = o.optString("sourceUrl"),
+                    headers = run {
+                        val h = LinkedHashMap<String, String>()
+                        o.optJSONObject("headers")?.let { j ->
+                            j.keys().forEach { k -> h[k] = j.optString(k) }
+                        }
+                        h
+                    },
                     isHls = o.optBoolean("isHls"),
                     videoPath = vp,
                     audioPath = ap,

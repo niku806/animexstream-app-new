@@ -40,10 +40,9 @@ import org.json.JSONObject
 
 private val mainCategories = listOf(
     "Home" to "home",
-    "Anime" to "anime_tab",
+    "Anime" to "anime",
     "Movies" to "movies",
-    "Live TV" to "sports",
-    "Sports" to "sports"
+    "Series" to "series"
 )
 
 @Composable
@@ -64,6 +63,7 @@ fun HomeScreen(
     var selectedGenre by remember { mutableStateOf("All") }
     var continueItems by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var retryTick by remember { mutableStateOf(0) }
+    var activeCategory by remember { mutableStateOf("home") }
     val scroll = rememberScrollState()
 
     LaunchedEffect(selectedProvider, retryTick) {
@@ -102,9 +102,37 @@ fun HomeScreen(
         allAnime.forEach { a -> a.genres.forEach { g -> counts[g] = (counts[g] ?: 0) + 1 } }
         listOf("All") + counts.entries.sortedByDescending { it.value }.map { it.key }.take(12)
     }
-    val filtered = remember(allAnime, selectedGenre) {
-        if (selectedGenre == "All") allAnime
-        else allAnime.filter { it.genres.any { g -> g.equals(selectedGenre, true) } }
+    val categoryFiltered = remember(allAnime, activeCategory) {
+        when (activeCategory) {
+            "anime" -> allAnime.filter { a ->
+                a.genres.any { it.contains("anime", true) || it.contains("animation", true) }
+            }
+            "movies" -> allAnime.filter { a ->
+                !a.genres.any { it.contains("anime", true) || it.contains("animation", true) } &&
+                    a.genres.none { it.contains("series", true) || it.contains("tv", true) }
+            }
+            "series" -> allAnime.filter { a ->
+                a.genres.any { it.contains("series", true) || it.contains("tv", true) || it.contains("drama", true) }
+            }
+            else -> allAnime
+        }
+    }
+    val filtered = remember(categoryFiltered, selectedGenre) {
+        if (selectedGenre == "All") categoryFiltered
+        else categoryFiltered.filter { it.genres.any { g -> g.equals(selectedGenre, true) } }
+    }
+    val filteredRails = remember(mbRails, activeCategory) {
+        if (activeCategory == "home") mbRails
+        else mbRails.filter { (title, _) ->
+            when (activeCategory) {
+                "anime" -> title.contains("anime", true)
+                "movies" -> title.contains("movie", true) || title.contains("cinema", true) ||
+                    title.contains("bollywood", true) || title.contains("hollywood", true)
+                "series" -> title.contains("series", true) || title.contains("tv", true) ||
+                    title.contains("drama", true)
+                else -> true
+            }
+        }.ifEmpty { mbRails }
     }
 
     Column(
@@ -116,9 +144,8 @@ fun HomeScreen(
         Spacer(Modifier.height(8.dp))
 
         // ============ MAIN CATEGORY SLIDESHOW ON TOP ============
-        MainCategoryRow(onSelect = { route ->
-            if (route == "home") return@MainCategoryRow
-            onCategoryClick(route)
+        MainCategoryRow(active = activeCategory, onSelect = { cat ->
+            activeCategory = cat
         })
 
         Spacer(Modifier.height(14.dp))
@@ -150,7 +177,7 @@ fun HomeScreen(
 
         if (isMovieBox && !loading) {
             // Real MovieBox home rows
-            mbRails.forEach { (title, items) ->
+            filteredRails.forEach { (title, items) ->
                 if (items.isNotEmpty()) {
                     SectionHeader(title, Modifier.padding(horizontal = 16.dp))
                     Spacer(Modifier.height(10.dp))
@@ -226,29 +253,29 @@ private fun HomeHeader(onSearchClick: () -> Unit, onMenuClick: () -> Unit, onSet
 }
 
 @Composable
-private fun MainCategoryRow(onSelect: (String) -> Unit) {
+private fun MainCategoryRow(active: String = "home", onSelect: (String) -> Unit) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         items(mainCategories.size) { idx ->
             val (label, route) = mainCategories[idx]
-            val active = route == "home"
+            val isActive = route == active
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.clickable { onSelect(route) }
             ) {
                 Text(
                     label,
-                    color = if (active) MaterialTheme.colorScheme.secondary else TextSecondary,
+                    color = if (isActive) MaterialTheme.colorScheme.secondary else TextSecondary,
                     fontSize = 15.sp,
-                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
+                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
                 )
                 Spacer(Modifier.height(4.dp))
                 Box(
-                    Modifier.width(if (active) 22.dp else 0.dp).height(2.dp)
+                    Modifier.width(if (isActive) 22.dp else 0.dp).height(2.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(if (active) MaterialTheme.colorScheme.secondary else Color.Transparent)
+                        .background(if (isActive) MaterialTheme.colorScheme.secondary else Color.Transparent)
                 )
             }
         }
