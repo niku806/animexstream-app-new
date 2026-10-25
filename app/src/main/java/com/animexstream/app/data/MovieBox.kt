@@ -140,77 +140,71 @@ object MovieBox {
 
 
     // ---------- transport ----------
+    // HttpURLConnection (not OkHttp): matches Python's urllib wire behaviour
+    // exactly. OkHttp adds Accept-Encoding: gzip and normalizes URLs, both of
+    // which change the signed bytes and make the server reject with 407.
     private fun rawRequest(method: String, path: String, body: String?, auth: String?): JSONObject? {
         val start = activeHost
         var lastMsg: String? = null
         for (i in HOSTS.indices) {
             val idx = (start + i) % HOSTS.size
             val base = HOSTS[idx]
-            val rawUrl = base + path
-            val httpUrl = rawUrl.toHttpUrlOrNull()
-            if (httpUrl == null) {
-                lastMsg = "bad url: $rawUrl"
-                continue
-            }
-            // Sign the raw URL string — OkHttp sends the same bytes for these
-            // paths, and the server compares against the raw form.
-            val signedUrl = rawUrl
+            val url = base + path
             val ts = System.currentTimeMillis()
-            val request = Request.Builder()
-                .url(httpUrl)
-                .header("User-Agent", userAgent)
-                .header("Accept", "application/json")
-                .header("Content-Type", "application/json")
-                .header("Connection", "keep-alive")
-                .header("x-client-token", xClientToken(ts))
-                .header("x-tr-signature", sign(method, signedUrl, body, ts))
-                .header("x-client-info", clientInfo)
-                .header("x-client-status", "0")
-                .header("x-forwarded-for", spoofIp())
-                .apply { if (auth != null) header("Authorization", "Bearer $auth") }
-                .apply {
-                    if (method == "POST") post((body ?: "{}").toRequestBody(jsonType)) else get()
-                }
-                .build()
             try {
-                client.newCall(request).execute().use { resp ->
-                    if (!resp.isSuccessful) {
-                        val bodyText = runCatching { resp.body?.string() }.getOrNull() ?: ""
-                        val kind = when (resp.code) {
-                            407, 406 -> "SIG"
-                            401, 403 -> "AUTH"
-                            404 -> "NF"
-                            else -> "HTTP"
-                        }
-                        lastMsg = "[B22] $kind ${resp.code} @ ${base.removePrefix("https://")} ${bodyText.take(60)}"
-                        return@use
-                    }
-                    val text = resp.body?.string()
-                    if (text.isNullOrBlank()) {
-                        lastMsg = "[B22] empty body @ ${base.removePrefix("https://")}"
-                        return@use
-                    }
-                    val json = runCatching { JSONObject(text) }.getOrNull()
-                    if (json == null) {
-                        lastMsg = "[B22] bad JSON @ ${base.removePrefix("https://")}"
-                        return@use
-                    }
-                    if (json.has("code")) {
-                        val code = json.optInt("code", -1)
-                        if (code != 0 && code != 200) {
-                            lastMsg = "[B22] code=$code ${json.optString("message").take(40)}"
-                            return@use
-                        }
-                    }
-                    activeHost = idx
-                    lastError = null
-                    return json
+                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = method
+                conn.connectTimeout = 10000
+                conn.readTimeout = 20000
+                conn.instanceFollowRedirects = true
+                conn.useCaches = false
+                conn.setRequestProperty("User-Agent", userAgent)
+                conn.setRequestProperty("Accept", "application/json")
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("Accept-Encoding", "identity")
+                conn.setRequestProperty("Connection", "keep-alive")
+                conn.setRequestProperty("x-client-token", xClientToken(ts))
+                conn.setRequestProperty("x-tr-signature", sign(method, url, body, ts))
+                conn.setRequestProperty("x-client-info", clientInfo)
+                conn.setRequestProperty("x-client-status", "0")
+                conn.setRequestProperty("x-forwarded-for", spoofIp())
+                if (auth != null) conn.setRequestProperty("Authorization", "Bearer " + auth)
+
+                if (method == "POST") {
+                    val bytes = (body ?: "{}").toByteArray(Charsets.UTF_8)
+                    conn.doOutput = true
+                    conn.setFixedLengthStreamingMode(bytes.size)
+                    conn.outputStream.use { it.write(bytes) }
                 }
+
+                val code = conn.responseCode
+                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                val text = try {
+                    stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+                } catch (_: Exception) { "" }
+                try { conn.disconnect() } catch (_: Exception) {}
+
+                if (text.isBlank()) {
+                    lastMsg = "[B23] empty(" + code + ") @ " + base.removePrefix("https://")
+                    continue
+                }
+                val json = runCatching { JSONObject(text) }.getOrNull()
+                if (json == null) {
+                    lastMsg = "[B23] nonJSON(" + code + ") " + text.take(70)
+                    continue
+                }
+                val rc = json.optInt("code", 0)
+                if (rc != 0 && rc != 200) {
+                    lastMsg = "[B23] code=" + rc + " " + json.optString("message").take(50)
+                    continue
+                }
+                activeHost = idx
+                lastError = null
+                return json
             } catch (e: Exception) {
-                lastMsg = "[B22] ${e.javaClass.simpleName} @ ${base.removePrefix("https://")}: ${e.message?.take(50)}"
+                lastMsg = "[B23] " + e.javaClass.simpleName + " @ " + base.removePrefix("https://") + ": " + (e.message ?: "").take(60)
             }
         }
-        activeHost = 0
         lastError = lastMsg ?: "all hosts failed"
         return null
     }
@@ -265,7 +259,7 @@ object MovieBox {
 
     /** Home rails — each is a titled group of subjects. */
     suspend fun homeRails(): List<Pair<String, List<Anime>>> = withContext(Dispatchers.IO) {
-        val root = dataOf(request("GET", "/wefeed-mobile-bff/tab-operating?page=1&tabId=&version="))
+        val root = dataOf(request("GET", "/wefeed-mobile-bff/tab-operating?page=1"))
             ?: return@withContext emptyList()
         val groups = root.optJSONArray("items") ?: return@withContext emptyList()
         val out = ArrayList<Pair<String, List<Anime>>>()
